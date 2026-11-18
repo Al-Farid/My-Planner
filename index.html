@@ -321,6 +321,8 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     <label class="fld" id="fTextWrap"><span>Objective</span><input type="text" id="fText"></label>
     <label class="fld" id="fNoteWrap"><span>Sub-objective / details</span><textarea id="fNote" rows="3"></textarea></label>
     <label class="chk" id="fPrioWrap"><input type="checkbox" id="fPrio"> &#9733; Top priority</label>
+    <div class="fld" id="fBlkWrap" hidden><span id="fBlkLabel">Study blocks</span><span class="blks" id="fBlocks" role="group" aria-label="Study blocks"></span>
+      <span style="margin-top:6px">Day (change it to move the task)</span><input type="date" id="fDate"></div>
     <label class="fld"><span id="fSecLabel">Section</span><input type="text" id="fSec" list="secList"></label>
     <div class="row-btns">
       <button type="button" class="btn" id="fTop" data-act="sectop" hidden>Move section to top</button>
@@ -589,7 +591,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     }
     return '<div class="it' + (t.done ? " done" : "") + (t.priority ? " prio" : "") + '">' +
       '<input type="checkbox" data-act="toggle" data-id="' + t.id + '"' + (t.done ? " checked" : "") + ' aria-label="Mark ' + esc(t.text) + ' done">' + ind +
-      '<span class="t2" data-act="edit" data-id="' + t.id + '" title="' + esc(t.section + (t.note ? " — " + t.note : "")) + '">' + esc(t.text) + (extra ? '<small>' + extra + '</small>' : '') + '</span>' +
+      '<span class="t2" data-act="edit" data-id="' + t.id + '"' + (day ? ' data-date="' + day + '"' : '') + ' title="' + esc(t.section + (t.note ? " — " + t.note : "")) + '">' + esc(t.text) + (extra ? '<small>' + extra + '</small>' : '') + '</span>' +
       '<button class="star' + (t.priority ? " on" : "") + '" data-act="prio" data-id="' + t.id + '" aria-pressed="' + (t.priority ? "true" : "false") + '" title="Top priority" aria-label="Top priority">&#9733;</button></div>';
   }
   function defaultBlock(d) {
@@ -788,6 +790,13 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     $("fTop").hidden = isTask || sections().indexOf(mode.name) <= 0;
     if (isTask) { $("fText").value = t.text; $("fNote").value = t.note || ""; $("fSec").value = t.section; $("fPrio").checked = !!t.priority; }
     else $("fSec").value = mode.name;
+    var showBlk = isTask && !!mode.date;
+    $("fBlkWrap").hidden = !showBlk;
+    if (showBlk) {
+      $("fBlkLabel").textContent = "Study blocks on " + fmtDay(mode.date);
+      $("fBlocks").innerHTML = BLOCKS.map(function (b) { var on = t.slots.indexOf(mode.date + "|" + b.id) >= 0; return '<button type="button" class="bpick' + (on ? " on" : "") + '" data-b="' + b.id + '" aria-pressed="' + on + '">' + esc(b.label) + '</button>'; }).join("");
+      $("fDate").value = mode.date;
+    }
     $("editModal").hidden = false;
     (isTask ? $("fText") : $("fSec")).focus();
   }
@@ -809,6 +818,11 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
         if (last >= 0) S.tasks.splice(last + 1, 0, t); else S.tasks.push(t);
       }
       t.text = txt; t.note = $("fNote").value.trim(); t.priority = $("fPrio").checked;
+      if (editing.date) {
+        var od = editing.date, nd = $("fDate").value || od, picked = pickedBlocks($("fBlocks"));
+        t.slots = t.slots.filter(function (x) { return x.slice(0, 10) !== od; });
+        picked.forEach(function (b) { var k = nd + "|" + b; if (t.slots.indexOf(k) < 0) t.slots.push(k); });
+      }
     } else {
       if (!sec) { $("fSec").focus(); return; }
       var old = editing.name;
@@ -984,7 +998,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
       touch(); return;
     }
     if (a === "view") { setViewMode(el.dataset.view); return; }
-    if (a === "edit") { openEditor({ kind: "task", id: id }); return; }
+    if (a === "edit") { openEditor({ kind: "task", id: id, date: el.dataset.date || null }); return; }
     if (a === "secedit") { openEditor({ kind: "sec", name: el.dataset.sec }); return; }
     if (a === "edit-cancel") { closeEditor(); return; }
     if (a === "sectop" && editing && editing.kind === "sec") {
