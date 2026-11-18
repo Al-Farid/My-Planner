@@ -9,7 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import com.google.firebase.firestore.ListenerRegistration
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -23,6 +25,8 @@ import java.util.Locale
 class SyncService : Service() {
     private var reg: ListenerRegistration? = null
     private var listeningTo: String? = null
+    private var failed = false
+    private val handler = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -49,16 +53,20 @@ class SyncService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (feed != listeningTo) listen(feed)
+        if (feed != listeningTo || failed) listen(feed)
         return START_STICKY
     }
 
     private fun listen(feed: String) {
         reg?.remove()
+        handler.removeCallbacksAndMessages(null)
+        failed = false
         listeningTo = feed
         reg = Config.db(this).collection("feeds").document(feed).addSnapshotListener { snap, err ->
             if (err != null) {
-                show("Can't reach your planner (${err.code}). Retrying.")
+                failed = true
+                show("Can't reach your planner (${err.code}). Retrying in 30 s.")
+                handler.postDelayed({ listeningTo?.let { listen(it) } }, 30_000L)
                 return@addSnapshotListener
             }
             if (snap == null || !snap.exists()) {
@@ -97,6 +105,7 @@ class SyncService : Service() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         reg?.remove()
         reg = null
         super.onDestroy()
