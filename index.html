@@ -164,6 +164,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .it { display: flex; align-items: center; gap: 7px; padding: 4px; border-radius: 5px; min-width: 0; font-size: 13px; }
 .it:hover { background: var(--surface2); }
 .it.prio { background: var(--prio); }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
 .it .t2 { flex: 1; min-width: 0; overflow-wrap: anywhere; cursor: pointer; }
 .it .t2 small { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .it.done .t2 { text-decoration: line-through; color: var(--faint); }
@@ -608,21 +609,27 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     var today = todayStr(), we = addDays(weekStart, 6);
     $("wkRange").textContent = parse(weekStart).toLocaleDateString("en-US", { month: "long", day: "numeric" }) + " – " +
       parse(we).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    /* today's focus: always the real today */
-    var ti = dayItems(today);
-    $("todayLbl").textContent = fmtDay(today);
+    /* today's focus: today's tasks, shown only on the week that contains today */
+    var isThisWeek = today >= weekStart && today <= we;
+    var ti = isThisWeek ? dayItems(today) : [];
+    $("todayLbl").textContent = isThisWeek ? fmtDay(today) : "";
     $("todayClr").innerHTML = ti.length ? clrBtn(today) : "";
     $("wkToday").innerHTML = ti.length
       ? ti.map(function (x) { return itemHtml(x.t, x.blocks, "", today); }).join("")
-      : '<div class="empty2">Nothing scheduled today. Add a task in today&rsquo;s box.</div>';
-    /* priorities: every starred task, open ones first */
-    var pr = S.tasks.filter(function (t) { return t.priority; }).sort(function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0); });
+      : isThisWeek ? '<div class="empty2">Nothing scheduled today. Add a task in today&rsquo;s box.</div>'
+      : '<div class="empty2">Today is in another week. <button type="button" class="linkbtn" data-act="today">Go to this week</button></div>';
+    /* priorities: starred tasks scheduled in the viewed week (done ones stay, ticked); unscheduled stars show on this week */
+    var pr = S.tasks.filter(function (t) {
+      if (!t.priority) return false;
+      if (inWeek(t)) return true;
+      return isThisWeek && !t.slots.length;
+    }).sort(function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0); });
     $("wkPrio").innerHTML = pr.length
       ? pr.map(function (t) {
-          var next = t.slots.slice().sort().filter(function (s) { return s.slice(0, 10) >= today; })[0];
-          return itemHtml(t, null, next ? fmtDay(next.slice(0, 10)) : "not scheduled");
+          var inW = t.slots.map(function (s) { return s.slice(0, 10); }).filter(function (d) { return d >= weekStart && d <= we; }).sort()[0];
+          return itemHtml(t, null, inW ? fmtDay(inW) : "not scheduled");
         }).join("")
-      : '<div class="empty2">Tap &#9733; on any task to make it a top priority.</div>';
+      : '<div class="empty2">No starred tasks this week. Tap &#9733; on a task to make it a top priority.</div>';
     /* to-do: main sections that have tasks scheduled this week */
     var todo = sections().map(function (sec) {
       var ts = S.tasks.filter(function (t) { return t.section === sec && inWeek(t); });

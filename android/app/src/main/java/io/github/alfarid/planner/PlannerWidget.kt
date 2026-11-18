@@ -61,7 +61,7 @@ class PlannerWidget : AppWidgetProvider() {
             val longest = maxOf(wDp, hDp) * scale
             if (longest > 1300f) scale *= 1300f / longest
             val prefs = Config.prefs(ctx)
-            val bmp = BoardRenderer.render(
+            val bmp = BoardRenderer.render(ctx,
                 PlanData.load(ctx), LocalDate.now(),
                 (wDp * scale).toInt(), (hDp * scale).toInt(), prefs.getString("feed", null) != null
             )
