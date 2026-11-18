@@ -7,7 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, collection, setDoc, deleteDoc, onSnapshot
+  doc, collection, setDoc, deleteDoc, onSnapshot, getDoc
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -82,7 +82,11 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
     gate.hidden = true;
     addAccountButton(user);
-    if (!started) { started = true; window.__resolvePlannerDb(makeDb(user.uid)); }
+    if (!started) {
+      started = true;
+      window.__resolvePlannerDb(makeDb(user.uid));
+      setupWidgetFeed(user.uid).then(addWidgetButton).catch(() => {});
+    }
   } else {
     if (started) { location.reload(); return; } // signed out: reload into the sign-in screen
     gate.hidden = false;
@@ -102,4 +106,100 @@ function addAccountButton(user) {
   });
   const top = document.querySelector(".top-r");
   if (top) top.appendChild(b);
+}
+
+// ---------- Home-screen widget ----------
+// The widget reads a copy of your planner at feeds/<code>. The code is a long random key that only
+// your devices know; the database rules let anyone holding it read that copy, and only you write it.
+const APK_URL = "https://github.com/Al-Farid/My-Planner/releases/latest/download/PlannerWidget.apk";
+
+function randomCode() {
+  const a = new Uint8Array(18);
+  crypto.getRandomValues(a);
+  return Array.from(a, (b) => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[b % 62]).join("") + "w2";
+}
+
+function compactPlan(d, uid) {
+  const tasks = Array.isArray(d.tasks) ? d.tasks : [];
+  const sections = [];
+  tasks.forEach((t) => { if (!sections.includes(t.section)) sections.push(t.section); });
+  return {
+    owner: uid,
+    updated: d.updated || Date.now(),
+    sections,
+    tasks: tasks.map((t) => ({
+      x: String(t.text || ""), s: sections.indexOf(t.section), d: !!t.done, p: !!t.priority,
+      l: Array.isArray(t.slots) ? t.slots.filter((x) => typeof x === "string") : []
+    })),
+    notes: d.notes && typeof d.notes === "object" && !Array.isArray(d.notes) ? d.notes : {}
+  };
+}
+
+async function setupWidgetFeed(uid) {
+  const sref = doc(fs, "users/" + uid + "/settings/widget");
+  let code = null;
+  try { const s = await getDoc(sref); code = s.exists() ? s.data().feedId : null; } catch (e) { /* offline: try later */ }
+  if (!code) { code = randomCode(); await setDoc(sref, { feedId: code }, { merge: true }); }
+  const fref = doc(fs, "feeds/" + code);
+  let publishedOnce = false;
+  // Publish after your own edits, and once per app start from the server's copy.
+  onSnapshot(doc(fs, "users/" + uid + "/tracker/state"), { includeMetadataChanges: true }, (s) => {
+    if (!s.exists()) return;
+    const local = s.metadata.hasPendingWrites;
+    if (!local && (s.metadata.fromCache || publishedOnce)) return;
+    publishedOnce = true;
+    setDoc(fref, compactPlan(s.data(), uid)).catch(() => {});
+  });
+  return code;
+}
+
+function addWidgetButton(code) {
+  if ($("widgetBtn") || !code) return;
+  const b = document.createElement("button");
+  b.id = "widgetBtn"; b.className = "acct"; b.type = "button"; b.textContent = "Widget";
+  b.addEventListener("click", () => openWidgetPanel(code));
+  const top = document.querySelector(".top-r");
+  if (top) top.insertBefore(b, $("acctBtn") || null);
+}
+
+function openWidgetPanel(code) {
+  let m = $("widgetModal");
+  if (!m) {
+    m = document.createElement("div");
+    m.className = "modal"; m.id = "widgetModal";
+    m.innerHTML = `
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wTitle">
+        <h3 id="wTitle">Home-screen widget</h3>
+        <p style="margin:0;color:var(--muted)">Shows this Weekly plan on your Android home screen and updates live.</p>
+        <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+          <li>Install the widget app: <a id="wApk" target="_blank" rel="noopener">download PlannerWidget.apk</a>, open it, and allow the install.</li>
+          <li>On this device, tap <b>Connect widget on this device</b>. Or copy the code and paste it in the widget app.</li>
+          <li>Long-press your home screen, tap <b>Widgets</b>, and add <b>Weekly plan</b>.</li>
+        </ol>
+        <label class="fld"><span>Widget code</span><input type="text" id="wCode" readonly></label>
+        <div class="row-btns" style="flex-wrap:wrap">
+          <button type="button" class="btn" id="wCopy">Copy code</button>
+          <a class="btn primary" id="wConnect" style="text-decoration:none">Connect widget on this device</a>
+          <button type="button" class="btn" id="wClose">Close</button>
+        </div>
+        <p style="margin:0;font-size:12px;color:var(--muted)">Anyone with this code can see your week, so keep it to your own devices.</p>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click", (e) => { if (e.target === m) m.hidden = true; });
+    m.querySelector("#wClose").addEventListener("click", () => { m.hidden = true; });
+    m.querySelector("#wCopy").addEventListener("click", () => {
+      const inp = m.querySelector("#wCode");
+      const done = () => { m.querySelector("#wCopy").textContent = "Copied"; setTimeout(() => { m.querySelector("#wCopy").textContent = "Copy code"; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(inp.value).then(done, () => { inp.select(); });
+      else inp.select();
+    });
+  }
+  m.querySelector("#wApk").href = APK_URL;
+  m.querySelector("#wCode").value = code;
+  const intent = "intent://connect?feed=" + encodeURIComponent(code) +
+    "#Intent;scheme=myplanner;package=io.github.alfarid.planner;S.browser_fallback_url=" + encodeURIComponent(APK_URL) + ";end";
+  const c = m.querySelector("#wConnect");
+  c.href = intent;
+  c.hidden = !/Android/i.test(navigator.userAgent);
+  m.hidden = false;
 }

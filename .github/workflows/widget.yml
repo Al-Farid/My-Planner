@@ -1,0 +1,42 @@
+name: Build widget APK
+
+on:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/widget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.7"
+
+      - name: Build the APK
+        working-directory: android
+        run: gradle --no-daemon --stacktrace assembleRelease
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk PlannerWidget.apk
+
+      - name: Publish it as a download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: widget-v${{ github.run_number }}
+          name: Planner widget ${{ github.run_number }}
+          body: "Install PlannerWidget.apk on your Android devices. Newer builds install over older ones."
+          files: PlannerWidget.apk
+          make_latest: true
