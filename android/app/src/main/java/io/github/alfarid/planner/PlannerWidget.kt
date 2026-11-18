@@ -6,7 +6,9 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
+import android.os.Bundle
 import android.widget.RemoteViews
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -19,6 +21,10 @@ class PlannerWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { update(context, manager, it) }
         manager.notifyAppWidgetViewDataChanged(ids, R.id.list)
+    }
+
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
+        update(context, manager, id)
     }
 
     override fun onEnabled(context: Context) {
@@ -34,8 +40,43 @@ class PlannerWidget : AppWidgetProvider() {
             manager.notifyAppWidgetViewDataChanged(ids, R.id.list)
         }
 
-        @Suppress("DEPRECATION")
         fun update(ctx: Context, manager: AppWidgetManager, id: Int) {
+            val prefs = Config.prefs(ctx)
+            if (prefs.getString("style", "board") == "board") {
+                try { updateBoard(ctx, manager, id); return } catch (e: Throwable) { /* fall back to the list */ }
+            }
+            updateList(ctx, manager, id)
+        }
+
+        /** The paper-planner look: the whole week drawn as one picture sized to the widget. */
+        private fun updateBoard(ctx: Context, manager: AppWidgetManager, id: Int) {
+            val o = manager.getAppWidgetOptions(id)
+            val land = ctx.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            var wDp = if (land) o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH) else o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            var hDp = if (land) o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) else o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+            if (wDp <= 0) wDp = 380
+            if (hDp <= 0) hDp = 500
+            val density = ctx.resources.displayMetrics.density
+            var scale = density
+            val longest = maxOf(wDp, hDp) * scale
+            if (longest > 1300f) scale *= 1300f / longest
+            val prefs = Config.prefs(ctx)
+            val bmp = BoardRenderer.render(
+                PlanData.load(ctx), LocalDate.now(),
+                (wDp * scale).toInt(), (hDp * scale).toInt(), prefs.getString("feed", null) != null
+            )
+            val rv = RemoteViews(ctx.packageName, R.layout.widget_board)
+            rv.setImageViewBitmap(R.id.board, bmp)
+            val open = if (prefs.getString("feed", null) == null)
+                PendingIntent.getActivity(ctx, 2, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            else
+                PendingIntent.getActivity(ctx, 1, Intent(Intent.ACTION_VIEW, Uri.parse(Config.PLANNER_URL)), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            rv.setOnClickPendingIntent(R.id.board_root, open)
+            manager.updateAppWidget(id, rv)
+        }
+
+        @Suppress("DEPRECATION")
+        private fun updateList(ctx: Context, manager: AppWidgetManager, id: Int) {
             val rv = RemoteViews(ctx.packageName, R.layout.widget_planner)
 
             val svc = Intent(ctx, WidgetService::class.java).apply {

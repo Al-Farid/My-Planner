@@ -96,7 +96,8 @@ object PlanData {
         BLOCKS.filter { (id, _) -> t.slots.contains("$date|$id") }
             .map { (id, def) -> plan.labels[id]?.takeIf { it.isNotBlank() } ?: def }
 
-    private fun color(t: Task) = COLORS[Math.floorMod(t.section, COLORS.size)]
+    fun color(t: Task) = COLORS[Math.floorMod(t.section, COLORS.size)]
+    fun secColor(si: Int) = COLORS[Math.floorMod(si, COLORS.size)]
 
     fun rows(plan: Plan?, today: LocalDate): List<Row> {
         if (plan == null) return emptyList()

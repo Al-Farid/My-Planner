@@ -62,6 +62,12 @@
             android:text="Allow running in background" />
 
         <Button
+            android:id="@+id/style"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Widget look: paper planner" />
+
+        <Button
             android:id="@+id/open"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

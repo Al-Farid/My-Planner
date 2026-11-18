@@ -32,6 +32,13 @@ class MainActivity : Activity() {
             } else connect(c)
         }
         findViewById<Button>(R.id.live).setOnClickListener { toggleLive() }
+        findViewById<Button>(R.id.style).setOnClickListener {
+            val p = Config.prefs(this)
+            val next = if (p.getString("style", "board") == "board") "list" else "board"
+            p.edit().putString("style", next).apply()
+            PlannerWidget.refreshAll(this)
+            render()
+        }
         findViewById<Button>(R.id.battery).setOnClickListener { askBattery() }
         findViewById<Button>(R.id.open).setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Config.PLANNER_URL)))
@@ -113,6 +120,8 @@ class MainActivity : Activity() {
         val pm = getSystemService(PowerManager::class.java)
         val unrestricted = pm.isIgnoringBatteryOptimizations(packageName)
         findViewById<Button>(R.id.live).text = if (live) "Turn off live sync" else "Turn on live sync"
+        findViewById<Button>(R.id.style).text =
+            if (p.getString("style", "board") == "board") "Widget look: paper planner (tap for list)" else "Widget look: scrolling list (tap for paper planner)"
         findViewById<Button>(R.id.battery).text =
             if (unrestricted) "Background use: allowed ✓" else "Allow running in background"
         if (feed != null && code.text.isEmpty()) code.setText(feed)
