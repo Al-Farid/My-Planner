@@ -136,6 +136,25 @@ function compactPlan(d, uid) {
   };
 }
 
+let feedRef = null, feedUid = null, lastPlan = null, feedStatus = "Not sent to the widget yet.";
+function setFeedStatus(t) { feedStatus = t; const el = $("wStatus"); if (el) el.textContent = t; }
+async function publishFeed(forceServer) {
+  if (!feedRef) return;
+  try {
+    if (forceServer || !lastPlan) {
+      const s = await getDoc(doc(fs, "users/" + feedUid + "/tracker/state"));
+      if (s.exists()) lastPlan = s.data();
+    }
+    if (!lastPlan) { setFeedStatus("Nothing to send yet: add a task first."); return; }
+    await setDoc(feedRef, compactPlan(lastPlan, feedUid));
+    setFeedStatus("Sent to the widget ✓ " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+  } catch (e) {
+    setFeedStatus(e && e.code === "permission-denied"
+      ? "Blocked by Firebase rules. Add the feeds rule in Firebase → Firestore → Rules, publish it, then tap Send to widget now."
+      : "Couldn't send to the widget (" + ((e && e.code) || "error") + ").");
+  }
+}
+
 async function setupWidgetFeed(uid) {
   const sref = doc(fs, "users/" + uid + "/settings/widget");
   let code = null;
@@ -143,13 +162,15 @@ async function setupWidgetFeed(uid) {
   if (!code) { code = randomCode(); await setDoc(sref, { feedId: code }, { merge: true }); }
   const fref = doc(fs, "feeds/" + code);
   let publishedOnce = false;
+  feedRef = fref; feedUid = uid;
   // Publish after your own edits, and once per app start from the server's copy.
   onSnapshot(doc(fs, "users/" + uid + "/tracker/state"), { includeMetadataChanges: true }, (s) => {
     if (!s.exists()) return;
     const local = s.metadata.hasPendingWrites;
     if (!local && (s.metadata.fromCache || publishedOnce)) return;
     publishedOnce = true;
-    setDoc(fref, compactPlan(s.data(), uid)).catch(() => {});
+    lastPlan = s.data();
+    publishFeed();
   });
   return code;
 }
@@ -178,7 +199,9 @@ function openWidgetPanel(code) {
           <li>Long-press your home screen, tap <b>Widgets</b>, and add <b>Weekly plan</b>.</li>
         </ol>
         <label class="fld"><span>Widget code</span><input type="text" id="wCode" readonly></label>
+        <p id="wStatus" style="margin:0;font-weight:600"></p>
         <div class="row-btns" style="flex-wrap:wrap">
+          <button type="button" class="btn" id="wSend">Send to widget now</button>
           <button type="button" class="btn" id="wCopy">Copy code</button>
           <a class="btn primary" id="wConnect" style="text-decoration:none">Connect widget on this device</a>
           <button type="button" class="btn" id="wClose">Close</button>
@@ -188,6 +211,7 @@ function openWidgetPanel(code) {
     document.body.appendChild(m);
     m.addEventListener("click", (e) => { if (e.target === m) m.hidden = true; });
     m.querySelector("#wClose").addEventListener("click", () => { m.hidden = true; });
+    m.querySelector("#wSend").addEventListener("click", () => { setFeedStatus("Sending…"); publishFeed(true); });
     m.querySelector("#wCopy").addEventListener("click", () => {
       const inp = m.querySelector("#wCode");
       const done = () => { m.querySelector("#wCopy").textContent = "Copied"; setTimeout(() => { m.querySelector("#wCopy").textContent = "Copy code"; }, 2000); };
@@ -197,6 +221,7 @@ function openWidgetPanel(code) {
   }
   m.querySelector("#wApk").href = APK_URL;
   m.querySelector("#wCode").value = code;
+  setFeedStatus(feedStatus);
   const intent = "intent://connect?feed=" + encodeURIComponent(code) +
     "#Intent;scheme=myplanner;package=io.github.alfarid.planner;S.browser_fallback_url=" + encodeURIComponent(APK_URL) + ";end";
   const c = m.querySelector("#wConnect");
