@@ -67,9 +67,9 @@ class PlannerWidget : AppWidgetProvider() {
                 ctx, 2, Intent(ctx, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            // Rows use a mutable template so each row can fill in its own (empty) click.
+            // Rows need a mutable template; Android 14 only allows that for an explicit intent.
             val rowTemplate = PendingIntent.getActivity(
-                ctx, 3, Intent(Intent.ACTION_VIEW, Uri.parse(Config.PLANNER_URL)),
+                ctx, 3, Intent(ctx, OpenPlannerActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
             rv.setOnClickPendingIntent(R.id.open, openPlanner)
