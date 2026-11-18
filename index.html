@@ -188,9 +188,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .quick .qt { grid-column: 1 / -1; }
 .quick .btn { padding: 4px 10px; font-size: 13px; }
 .blks { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-.blk { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 6px; padding: 4px 9px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.blk:hover { background: var(--surface2); }
-.blk.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.bpick { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 6px; padding: 4px 9px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bpick:hover { background: var(--surface2); }
+.bpick.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.blk { border: 1px solid transparent; background: transparent; padding: 3px 4px; border-radius: 5px; cursor: pointer; }
+button.blk:hover, button.blk:focus-visible { border-color: var(--line); background: var(--surface); }
+.key { cursor: pointer; border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; background: transparent; color: inherit; font: inherit; }
+.key:hover { border-color: var(--line); background: var(--surface); }
+.bp-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .notes textarea { display: block; width: 100%; border: 0; padding: 0 10px 6px; min-height: 104px; resize: none; overflow: hidden; font: inherit; font-size: 13px; line-height: 26px; color: var(--ink);
   background: repeating-linear-gradient(to bottom, transparent 0 25px, var(--line) 25px 26px); background-attachment: local; }
 .pstar { color: var(--gold); font-weight: 400; }
@@ -239,7 +244,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 
   <section class="panel weekly" id="weekView" aria-label="Weekly plan">
     <div class="wk-head">
-      <div><h2>Weekly plan</h2><div class="rng"><span id="wkRange"></span><span class="key"><span class="blk"><i></i><i></i><i></i></span>9&ndash;12 &middot; 2&ndash;5 &middot; 6&ndash;9</span></div></div>
+      <div><h2>Weekly plan</h2><div class="rng"><span id="wkRange"></span><button type="button" class="key" data-act="blocktimes" title="Change the study block times"><span class="blk"><i></i><i></i><i></i></span><span id="keyText">9&ndash;12 &middot; 2&ndash;5 &middot; 6&ndash;9</span> &#9998;</button></div></div>
       <div class="ctrls">
         <button class="btn icon" data-act="prev" aria-label="Previous week">&#8249;</button>
         <button class="btn" data-act="today">This week</button>
@@ -294,7 +299,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       <input type="text" id="newText" placeholder="New task, for example: Redraw Figure 7" aria-label="New task" required>
       <input type="text" id="newSec" list="secList" placeholder="Section (blank = Other tasks)" aria-label="Section">
       <input type="date" id="newDate" aria-label="Date (optional)" title="Date (optional, can be in the past)">
-      <span class="blks" id="newBlocks" role="group" aria-label="Study blocks (pick one or more)"><button type="button" class="blk on" data-act="blk" data-b="am" aria-pressed="true">9&ndash;12</button><button type="button" class="blk" data-act="blk" data-b="pm" aria-pressed="false">2&ndash;5</button><button type="button" class="blk" data-act="blk" data-b="ev" aria-pressed="false">6&ndash;9</button></span>
+      <span class="blks" id="newBlocks" role="group" aria-label="Study blocks (pick one or more)"><button type="button" class="bpick on" data-b="am" aria-pressed="true">9&ndash;12</button><button type="button" class="bpick" data-b="pm" aria-pressed="false">2&ndash;5</button><button type="button" class="bpick" data-b="ev" aria-pressed="false">6&ndash;9</button></span>
       <button class="btn primary" type="submit">Add task</button>
       <datalist id="secList"></datalist>
     </form>
@@ -302,7 +307,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     <div class="scroll" id="scroll"><div class="grid" id="grid"></div></div>
 
     <div class="legend">
-      <span><b>9–12</b> morning</span><span><b>2–5</b> afternoon</span><span><b>6–9</b> evening</span>
+      <span><b id="lgAm">9–12</b> morning</span><span><b id="lgPm">2–5</b> afternoon</span><span><b id="lgEv">6–9</b> evening</span>
       <span>Click a cell to schedule &middot; click again to clear &middot; drag to paint a run</span>
       <span>&#9998; or double-click a task to edit it</span>
       <span>Drag &#10303; to move a task (into any section) or a whole section</span>
@@ -411,6 +416,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       delete t.date; delete t.block;
     });
     if (!st.notes || typeof st.notes !== "object" || Array.isArray(st.notes)) st.notes = {};
+    if (!st.blocks || typeof st.blocks !== "object" || Array.isArray(st.blocks)) st.blocks = {};
     return st;
   }
 
@@ -442,7 +448,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     if (!dbDoc) { dirty = false; return; }
     if (saving) { saveT = setTimeout(flush, 300); return; }
     saving = true; dirty = false;
-    dbDoc.set({ tasks: JSON.parse(JSON.stringify(S.tasks)), notes: JSON.parse(JSON.stringify(S.notes || {})), updated: S.updated }).then(function () {
+    dbDoc.set({ tasks: JSON.parse(JSON.stringify(S.tasks)), notes: JSON.parse(JSON.stringify(S.notes || {})), blocks: JSON.parse(JSON.stringify(S.blocks || {})), updated: S.updated }).then(function () {
       saving = false;
       if (dirty) flush(); else setStatus("All changes saved");
     }, function () { saving = false; dirty = true; setStatus("Could not reach your account. Saved on this device."); });
@@ -461,6 +467,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 
   /* ---------- render ---------- */
   function render() {
+    applyBlockLabels();
     var total = S.tasks.length, done = S.tasks.filter(function (t) { return t.done; }).length;
     var sched = S.tasks.filter(function (t) { return !t.done && t.slots.length; }).length;
     var unsched = S.tasks.filter(function (t) { return !t.done && !t.slots.length; }).length;
@@ -572,12 +579,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     return out.sort(function (a, b) { return a.first - b.first; });
   }
   function fmtDay(d) { var x = parse(d); return x.toLocaleDateString("en-US", { weekday: "short" }) + " " + (x.getMonth() + 1) + "/" + x.getDate(); }
-  function itemHtml(t, blocks, extra) {
+  function itemHtml(t, blocks, extra, day) {
     var col = secColor(t.section), ind = "";
     if (blocks && blocks.length) {
       var lab = blocks.map(function (b) { return b.label; }).join(", ");
-      ind = '<span class="blk" style="--fillc:var(--' + col + ')" title="' + lab + '" aria-label="' + lab + '">' +
-        BLOCKS.map(function (b) { return '<i' + (blocks.indexOf(b) >= 0 ? ' class="on"' : '') + '></i>'; }).join("") + '</span>';
+      ind = (day ? '<button type="button" class="blk" data-act="blockedit" data-id="' + t.id + '" data-date="' + day + '"' : '<span class="blk"') +
+        ' style="--fillc:var(--' + col + ')" title="' + lab + (day ? ' (tap to change)' : '') + '" aria-label="' + lab + (day ? ', change study blocks' : '') + '">' +
+        BLOCKS.map(function (b) { return '<i' + (blocks.indexOf(b) >= 0 ? ' class="on"' : '') + '></i>'; }).join("") + (day ? '</button>' : '</span>');
     }
     return '<div class="it' + (t.done ? " done" : "") + (t.priority ? " prio" : "") + '">' +
       '<input type="checkbox" data-act="toggle" data-id="' + t.id + '"' + (t.done ? " checked" : "") + ' aria-label="Mark ' + esc(t.text) + ' done">' + ind +
@@ -603,7 +611,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     $("todayLbl").textContent = fmtDay(today);
     $("todayClr").innerHTML = ti.length ? clrBtn(today) : "";
     $("wkToday").innerHTML = ti.length
-      ? ti.map(function (x) { return itemHtml(x.t, x.blocks); }).join("")
+      ? ti.map(function (x) { return itemHtml(x.t, x.blocks, "", today); }).join("")
       : '<div class="empty2">Nothing scheduled today. Add a task in today&rsquo;s box.</div>';
     /* priorities: every starred task, open ones first */
     var pr = S.tasks.filter(function (t) { return t.priority; }).sort(function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0); });
@@ -637,12 +645,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       h += '<div class="box day' + (d === today ? " is-today" : "") + '"><h3>' + (items.length ? clrBtn(d) : "") + wd +
         '<small>' + (dt.getMonth() + 1) + "/" + dt.getDate() + (items.length ? " · " + items.filter(function (x) { return x.t.done; }).length + "/" + items.length + " done" : "") + '</small>' +
         '<button class="h3add" data-act="qadd" data-date="' + d + '" title="Add a task on ' + wd + '" aria-label="Add a task on ' + wd + '">+</button></h3>' +
-        '<div class="list">' + (items.length ? items.map(function (x) { return itemHtml(x.t, x.blocks); }).join("") : '<div class="empty2">Free</div>') + '</div>';
+        '<div class="list">' + (items.length ? items.map(function (x) { return itemHtml(x.t, x.blocks, "", d); }).join("") : '<div class="empty2">Free</div>') + '</div>';
       if (quickDate === d) {
         var db = defaultBlock(d);
         h += '<form class="quick" data-date="' + d + '" autocomplete="off">' +
           '<input class="qt" type="text" id="qText" placeholder="Task, for example: Draft 4.3 figures" aria-label="New task">' +
-          '<span class="blks" id="qBlocks" role="group" aria-label="Study blocks (pick one or more)">' + BLOCKS.map(function (b) { var on = b.id === db; return '<button type="button" class="blk' + (on ? " on" : "") + '" data-act="blk" data-b="' + b.id + '" aria-pressed="' + on + '">' + b.label + '</button>'; }).join("") + '</span>' +
+          '<span class="blks" id="qBlocks" role="group" aria-label="Study blocks (pick one or more)">' + BLOCKS.map(function (b) { var on = b.id === db; return '<button type="button" class="bpick' + (on ? " on" : "") + '" data-act="blk" data-b="' + b.id + '" aria-pressed="' + on + '">' + b.label + '</button>'; }).join("") + '</span>' +
           '<input type="text" id="qSec" list="secList" placeholder="Section" aria-label="Section">' +
           '<button class="btn primary" type="submit">Add</button><button class="btn" type="button" data-act="qcancel" aria-label="Cancel">&times;</button></form>';
       }
@@ -651,10 +659,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     $("wkDays").innerHTML = h;
   }
   function pickedBlocks(group) {
-    return group ? Array.prototype.map.call(group.querySelectorAll(".blk.on"), function (b) { return b.dataset.b; }) : [];
+    return group ? Array.prototype.map.call(group.querySelectorAll(".bpick.on"), function (b) { return b.dataset.b; }) : [];
   }
   document.addEventListener("click", function (e) {
-    var b = e.target.closest && e.target.closest(".blk"); if (!b) return;
+    var b = e.target.closest && e.target.closest(".bpick"); if (!b) return;
     var on = !b.classList.contains("on");
     b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
   });
@@ -662,7 +670,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     var f = e.target; if (!f.classList || !f.classList.contains("quick")) return;
     e.preventDefault();
     var text = $("qText").value.trim(); if (!text) { $("qText").focus(); return; }
-    var qb = pickedBlocks($("qBlocks")); if (!qb.length) { $("qBlocks").querySelector(".blk").focus(); return; }
+    var qb = pickedBlocks($("qBlocks")); if (!qb.length) { $("qBlocks").querySelector(".bpick").focus(); return; }
     var sec = $("qSec").value.trim() || "Weekly tasks", nt = { id: uid(), text: text, note: "", section: sec, done: false, doneOn: null, slots: qb.map(function (b) { return f.dataset.date + "|" + b; }), priority: false };
     var last = -1;
     S.tasks.forEach(function (x, i) { if (x.section === sec) last = i; });
@@ -709,6 +717,65 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   window.addEventListener("hashchange", function () { if (location.hash === "#schedule" || location.hash === "#week") { viewMode = location.hash.slice(1); applyView(); } });
   applyView();
 
+  /* ---------- study blocks: adjust a task's blocks, rename block times ---------- */
+  var DEFAULT_LABELS = { am: "9–12", pm: "2–5", ev: "6–9" }, bmState = null;
+  function applyBlockLabels() {
+    var L = (S && S.blocks) || {};
+    BLOCKS.forEach(function (b) { b.label = (L[b.id] && String(L[b.id]).trim()) || DEFAULT_LABELS[b.id]; });
+    var kt = $("keyText"); if (kt) kt.textContent = BLOCKS.map(function (b) { return b.label; }).join(" · ");
+    ["lgAm", "lgPm", "lgEv"].forEach(function (lid, i) { var el = $(lid); if (el) el.textContent = BLOCKS[i].label; });
+    var nb = $("newBlocks");
+    if (nb) Array.prototype.forEach.call(nb.querySelectorAll(".bpick"), function (btn, i) { btn.textContent = BLOCKS[i].label; });
+  }
+  function blockModal() {
+    var m = $("blockModal"); if (m) return m;
+    m = document.createElement("div"); m.className = "modal"; m.id = "blockModal"; m.hidden = true;
+    m.innerHTML = '<form class="sheet" id="bmForm" autocomplete="off" role="dialog" aria-modal="true" aria-labelledby="bmTitle">' +
+      '<h3 id="bmTitle"></h3><p id="bmSub" style="margin:0;color:var(--muted)"></p><div id="bmBody" class="fld"></div><div class="row-btns" id="bmBtns" style="flex-wrap:wrap"></div></form>';
+    document.body.appendChild(m);
+    m.addEventListener("click", function (e) { if (e.target === m) closeBm(); });
+    return m;
+  }
+  function closeBm() { bmState = null; var m = $("blockModal"); if (m) m.hidden = true; }
+  function openBlockEdit(id, date) {
+    var t = task(id); if (!t || !date) return;
+    var m = blockModal(); bmState = { kind: "task", id: id, date: date };
+    $("bmTitle").textContent = "Adjust study blocks";
+    $("bmSub").textContent = t.text + " · " + fmtDay(date);
+    $("bmBody").innerHTML = '<span>Blocks</span><span class="blks" id="bmBlocks" role="group" aria-label="Study blocks">' +
+      BLOCKS.map(function (b) { var on = t.slots.indexOf(date + "|" + b.id) >= 0; return '<button type="button" class="bpick' + (on ? " on" : "") + '" data-b="' + b.id + '" aria-pressed="' + on + '">' + esc(b.label) + '</button>'; }).join("") +
+      '</span><span style="margin-top:6px">Day (change it to move the task)</span><input type="date" id="bmDate" value="' + date + '">';
+    $("bmBtns").innerHTML = '<button type="button" class="btn" data-act="bm-remove">Remove from this day</button>' +
+      '<button type="button" class="btn" data-act="bm-cancel">Cancel</button><button type="submit" class="btn primary">Save</button>';
+    m.hidden = false;
+  }
+  function openBlockTimes() {
+    var m = blockModal(); bmState = { kind: "times" };
+    var names = { am: "Morning block", pm: "Afternoon block", ev: "Evening block" };
+    $("bmTitle").textContent = "Study block times";
+    $("bmSub").textContent = "Rename your three daily blocks, for example 8–11. Tasks keep their blocks; only the times shown change.";
+    $("bmBody").innerHTML = BLOCKS.map(function (b) { return '<span>' + names[b.id] + '</span><input type="text" id="bt_' + b.id + '" maxlength="14" value="' + esc(b.label) + '">'; }).join("");
+    $("bmBtns").innerHTML = '<button type="button" class="btn" data-act="bm-reset">Reset</button>' +
+      '<button type="button" class="btn" data-act="bm-cancel">Cancel</button><button type="submit" class="btn primary">Save</button>';
+    m.hidden = false;
+    $("bt_am").focus();
+  }
+  document.addEventListener("submit", function (e) {
+    if (e.target.id !== "bmForm") return;
+    e.preventDefault();
+    if (!bmState) return;
+    if (bmState.kind === "task") {
+      var t = task(bmState.id); if (!t) { closeBm(); return; }
+      var old = bmState.date, nd = $("bmDate").value || old, picked = pickedBlocks($("bmBlocks"));
+      t.slots = t.slots.filter(function (x) { return x.slice(0, 10) !== old; });
+      picked.forEach(function (b) { var k = nd + "|" + b; if (t.slots.indexOf(k) < 0) t.slots.push(k); });
+    } else {
+      S.blocks = {};
+      BLOCKS.forEach(function (b) { var v = $("bt_" + b.id).value.trim(); if (v && v !== DEFAULT_LABELS[b.id]) S.blocks[b.id] = v; });
+    }
+    closeBm(); touch();
+  });
+
   /* ---------- editing ---------- */
   var editing = null;
   function openEditor(mode) {
@@ -753,7 +820,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     closeEditor(); touch();
   });
   $("editModal").addEventListener("click", function (e) { if (e.target.id === "editModal") closeEditor(); });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && editing) closeEditor(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && editing) closeEditor(); if (e.key === "Escape" && bmState) closeBm(); });
   $("grid").addEventListener("dblclick", function (e) {
     var n = e.target.closest(".name"); if (!n || e.target.closest("button, input")) return;
     var cb = n.querySelector("input[data-id]"); if (cb) openEditor({ kind: "task", id: cb.dataset.id });
@@ -896,6 +963,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   document.addEventListener("click", function (e) {
     var el = e.target.closest("[data-act]"); if (!el) return;
     var a = el.dataset.act, id = el.dataset.id;
+    if (a === "blockedit") { openBlockEdit(id, el.dataset.date); return; }
+    if (a === "blocktimes") { openBlockTimes(); return; }
+    if (a === "bm-cancel") { closeBm(); return; }
+    if (a === "bm-reset") { BLOCKS.forEach(function (b) { var f = $("bt_" + b.id); if (f) f.value = DEFAULT_LABELS[b.id]; }); return; }
+    if (a === "bm-remove") {
+      var tr = bmState && bmState.kind === "task" ? task(bmState.id) : null, rd = bmState ? bmState.date : null;
+      if (tr) tr.slots = tr.slots.filter(function (x) { return x.slice(0, 10) !== rd; });
+      closeBm(); touch(); return;
+    }
     if (a === "prio") { var tp = task(id); if (tp) { tp.priority = !tp.priority; touch(); } return; }
     if (a === "qadd") { quickDate = el.dataset.date; render(); var qf = $("qText"); if (qf) qf.focus(); return; }
     if (a === "qcancel") { quickDate = null; render(); return; }
@@ -1094,7 +1170,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
         if (snap.metadata.hasPendingWrites || dirty || saving || paintMode || drag || quickDate) return;
         var d = snap.exists ? snap.data() : null;
         if (d && Array.isArray(d.tasks) && (d.updated || 0) > (S.updated || 0)) {
-          S = migrate({ tasks: d.tasks.map(function (t) { return Object.assign({}, t); }), notes: d.notes, updated: d.updated });
+          S = migrate({ tasks: d.tasks.map(function (t) { return Object.assign({}, t); }), notes: d.notes, blocks: d.blocks, updated: d.updated });
           persistLocal(); render(); setStatus("All changes saved");
         } else if (S.updated && (!d || S.updated > (d.updated || 0))) { dirty = true; flush(); }
         else setStatus("All changes saved");

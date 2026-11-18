@@ -131,7 +131,8 @@ function compactPlan(d, uid) {
       x: String(t.text || ""), s: sections.indexOf(t.section), d: !!t.done, p: !!t.priority,
       l: Array.isArray(t.slots) ? t.slots.filter((x) => typeof x === "string") : []
     })),
-    notes: d.notes && typeof d.notes === "object" && !Array.isArray(d.notes) ? d.notes : {}
+    notes: d.notes && typeof d.notes === "object" && !Array.isArray(d.notes) ? d.notes : {},
+    blocks: d.blocks && typeof d.blocks === "object" && !Array.isArray(d.blocks) ? d.blocks : {}
   };
 }
 

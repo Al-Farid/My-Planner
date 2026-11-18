@@ -22,7 +22,8 @@ data class Plan(
     val sections: List<String>,
     val tasks: List<Task>,
     val notes: Map<String, String>,
-    val updated: Long
+    val updated: Long,
+    val labels: Map<String, String> = emptyMap()
 )
 
 /** A line in the widget list. */
@@ -70,7 +71,10 @@ object PlanData {
             val n = o.optJSONObject("notes")
             val notes = mutableMapOf<String, String>()
             n?.keys()?.forEach { k -> notes[k] = n.optString(k) }
-            Plan(sections, tasks, notes, o.optLong("updated", 0L))
+            val b = o.optJSONObject("blocks")
+            val labels = mutableMapOf<String, String>()
+            b?.keys()?.forEach { key -> labels[key] = b.optString(key) }
+            Plan(sections, tasks, notes, o.optLong("updated", 0L), labels)
         } catch (e: Exception) {
             null
         }
@@ -88,8 +92,9 @@ object PlanData {
     private fun shortDay(d: LocalDate): String =
         d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US) + " " + d.monthValue + "/" + d.dayOfMonth
 
-    private fun blocksOn(t: Task, date: String): List<String> =
-        BLOCKS.filter { (id, _) -> t.slots.contains("$date|$id") }.map { it.second }
+    private fun blocksOn(t: Task, date: String, plan: Plan): List<String> =
+        BLOCKS.filter { (id, _) -> t.slots.contains("$date|$id") }
+            .map { (id, def) -> plan.labels[id]?.takeIf { it.isNotBlank() } ?: def }
 
     private fun color(t: Task) = COLORS[Math.floorMod(t.section, COLORS.size)]
 
@@ -102,8 +107,8 @@ object PlanData {
 
         fun dayItems(date: String): List<Row.Item> =
             plan.tasks.mapNotNull { t ->
-                val b = blocksOn(t, date)
-                if (b.isEmpty()) null else Pair(BLOCKS.indexOfFirst { it.second == b[0] }, t to b)
+                val first = BLOCKS.indexOfFirst { (id, _) -> t.slots.contains("$date|$id") }
+                if (first < 0) null else Pair(first, t to blocksOn(t, date, plan))
             }.sortedBy { it.first }.map { (_, p) ->
                 val (t, b) = p
                 Row.Item(t.text, b.joinToString(" · "), color(t), t.done, t.priority, "")
