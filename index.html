@@ -187,6 +187,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .quick input[type=text], .quick select { font-size: 13px; padding: 4px 8px; }
 .quick .qt { grid-column: 1 / -1; }
 .quick .btn { padding: 4px 10px; font-size: 13px; }
+.blks { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.blk { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 6px; padding: 4px 9px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.blk:hover { background: var(--surface2); }
+.blk.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .notes textarea { display: block; width: 100%; border: 0; padding: 0 10px 6px; min-height: 104px; resize: none; overflow: hidden; font: inherit; font-size: 13px; line-height: 26px; color: var(--ink);
   background: repeating-linear-gradient(to bottom, transparent 0 25px, var(--line) 25px 26px); background-attachment: local; }
 .pstar { color: var(--gold); font-weight: 400; }
@@ -290,7 +294,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       <input type="text" id="newText" placeholder="New task, for example: Redraw Figure 7" aria-label="New task" required>
       <input type="text" id="newSec" list="secList" placeholder="Section (blank = Other tasks)" aria-label="Section">
       <input type="date" id="newDate" aria-label="Date (optional)" title="Date (optional, can be in the past)">
-      <select id="newBlock" aria-label="Study block"><option value="am">9&ndash;12</option><option value="pm">2&ndash;5</option><option value="ev">6&ndash;9</option></select>
+      <span class="blks" id="newBlocks" role="group" aria-label="Study blocks (pick one or more)"><button type="button" class="blk on" data-act="blk" data-b="am" aria-pressed="true">9&ndash;12</button><button type="button" class="blk" data-act="blk" data-b="pm" aria-pressed="false">2&ndash;5</button><button type="button" class="blk" data-act="blk" data-b="ev" aria-pressed="false">6&ndash;9</button></span>
       <button class="btn primary" type="submit">Add task</button>
       <datalist id="secList"></datalist>
     </form>
@@ -314,6 +318,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     <label class="chk" id="fPrioWrap"><input type="checkbox" id="fPrio"> &#9733; Top priority</label>
     <label class="fld"><span id="fSecLabel">Section</span><input type="text" id="fSec" list="secList"></label>
     <div class="row-btns">
+      <button type="button" class="btn" id="fTop" data-act="sectop" hidden>Move section to top</button>
       <button type="button" class="btn" data-act="edit-cancel">Cancel</button>
       <button type="submit" class="btn primary">Save changes</button>
     </div>
@@ -637,7 +642,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
         var db = defaultBlock(d);
         h += '<form class="quick" data-date="' + d + '" autocomplete="off">' +
           '<input class="qt" type="text" id="qText" placeholder="Task, for example: Draft 4.3 figures" aria-label="New task">' +
-          '<select id="qBlock" aria-label="Study block">' + BLOCKS.map(function (b) { return '<option value="' + b.id + '"' + (b.id === db ? " selected" : "") + '>' + b.label + '</option>'; }).join("") + '</select>' +
+          '<span class="blks" id="qBlocks" role="group" aria-label="Study blocks (pick one or more)">' + BLOCKS.map(function (b) { var on = b.id === db; return '<button type="button" class="blk' + (on ? " on" : "") + '" data-act="blk" data-b="' + b.id + '" aria-pressed="' + on + '">' + b.label + '</button>'; }).join("") + '</span>' +
           '<input type="text" id="qSec" list="secList" placeholder="Section" aria-label="Section">' +
           '<button class="btn primary" type="submit">Add</button><button class="btn" type="button" data-act="qcancel" aria-label="Cancel">&times;</button></form>';
       }
@@ -645,11 +650,20 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     }
     $("wkDays").innerHTML = h;
   }
+  function pickedBlocks(group) {
+    return group ? Array.prototype.map.call(group.querySelectorAll(".blk.on"), function (b) { return b.dataset.b; }) : [];
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest(".blk"); if (!b) return;
+    var on = !b.classList.contains("on");
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
   document.addEventListener("submit", function (e) {
     var f = e.target; if (!f.classList || !f.classList.contains("quick")) return;
     e.preventDefault();
     var text = $("qText").value.trim(); if (!text) { $("qText").focus(); return; }
-    var sec = $("qSec").value.trim() || "Weekly tasks", nt = { id: uid(), text: text, note: "", section: sec, done: false, doneOn: null, slots: [f.dataset.date + "|" + $("qBlock").value], priority: false };
+    var qb = pickedBlocks($("qBlocks")); if (!qb.length) { $("qBlocks").querySelector(".blk").focus(); return; }
+    var sec = $("qSec").value.trim() || "Weekly tasks", nt = { id: uid(), text: text, note: "", section: sec, done: false, doneOn: null, slots: qb.map(function (b) { return f.dataset.date + "|" + b; }), priority: false };
     var last = -1;
     S.tasks.forEach(function (x, i) { if (x.section === sec) last = i; });
     if (last >= 0) S.tasks.splice(last + 1, 0, nt); else S.tasks.push(nt);
@@ -704,6 +718,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     $("editTitle").textContent = isTask ? "Edit task" : "Rename section";
     $("fTextWrap").hidden = !isTask; $("fNoteWrap").hidden = !isTask; $("fPrioWrap").hidden = !isTask;
     $("fSecLabel").textContent = isTask ? "Section (type another name to move it)" : "Section name";
+    $("fTop").hidden = isTask || sections().indexOf(mode.name) <= 0;
     if (isTask) { $("fText").value = t.text; $("fNote").value = t.note || ""; $("fSec").value = t.section; $("fPrio").checked = !!t.priority; }
     else $("fSec").value = mode.name;
     $("editModal").hidden = false;
@@ -753,6 +768,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     var el = document.elementFromPoint(x, y); if (!el) return null;
     var band = el.closest(".band"), bf = el.closest(".bandfill");
     if (!band && bf && bf.previousElementSibling && bf.previousElementSibling.classList.contains("band")) band = bf.previousElementSibling;
+    if (!band && el.closest(".hd, .hd2, .corner")) band = document.querySelector(".band");
     if (band) return { band: band, sec: band.dataset.bsec };
     var nm = el.closest(".name"), cell = el.closest(".cell");
     var id = nm ? nm.dataset.tid : (cell ? cell.dataset.id : null);
@@ -895,6 +911,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     if (a === "edit") { openEditor({ kind: "task", id: id }); return; }
     if (a === "secedit") { openEditor({ kind: "sec", name: el.dataset.sec }); return; }
     if (a === "edit-cancel") { closeEditor(); return; }
+    if (a === "sectop" && editing && editing.kind === "sec") {
+      var topSec = editing.name, order = sections().filter(function (x) { return x !== topSec; }), outT = [];
+      order.unshift(topSec);
+      order.forEach(function (x) { S.tasks.forEach(function (t) { if (t.section === x) outT.push(t); }); });
+      S.tasks = outT; closeEditor(); touch(); return;
+    }
     if (a === "prev") { weekStart = addDays(weekStart, -7); saveView(); render(); }
     else if (a === "next") { weekStart = addDays(weekStart, 7); saveView(); render(); }
     else if (a === "today") { weekStart = mondayOf(todayStr()); saveView(); render(); }
@@ -932,7 +954,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     e.preventDefault();
     var text = $("newText").value.trim(); if (!text) return;
     var sec = $("newSec").value.trim() || "Other tasks", date = $("newDate").value;
-    var nt = { id: uid(), text: text, note: "", section: sec, done: false, doneOn: null, slots: date ? [date + "|" + $("newBlock").value] : [], priority: false };
+    var nb = pickedBlocks($("newBlocks")); if (date && !nb.length) nb = ["am"];
+    var nt = { id: uid(), text: text, note: "", section: sec, done: false, doneOn: null, slots: date ? nb.map(function (b) { return date + "|" + b; }) : [], priority: false };
     var lastI = -1;
     S.tasks.forEach(function (x, i) { if (x.section === sec) lastI = i; });
     if (lastI >= 0) S.tasks.splice(lastI + 1, 0, nt); else S.tasks.push(nt);
