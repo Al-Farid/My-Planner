@@ -164,6 +164,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .it { display: flex; align-items: center; gap: 7px; padding: 4px; border-radius: 5px; min-width: 0; font-size: 13px; }
 .it:hover { background: var(--surface2); }
 .it.prio { background: var(--prio); }
+.qpick { display: flex; flex-direction: column; gap: 4px; padding: 0 10px 10px; }
+.qpick-h { font-size: 12px; font-weight: 600; color: var(--muted); padding-top: 2px; }
+.qpick-h small { font-weight: 400; }
+.qpick-it { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
+.qpick-it:hover { background: var(--surface2); }
+.qpick-it .chip { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qpick-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qpick-it small { flex: none; color: var(--muted); font-size: 11px; }
+.qpick-it b { flex: none; color: var(--accent); font-size: 16px; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
 .it .t2 { flex: 1; min-width: 0; overflow-wrap: anywhere; cursor: pointer; }
 .it .t2 small { color: var(--muted); font-size: 11px; margin-left: 4px; }
@@ -570,7 +579,25 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
   });
 
   /* ---------- weekly plan ---------- */
-  var quickDate = null, viewMode = "week", notesT = null;
+  var quickDate = null, viewMode = "week", notesT = null, pickAll = false;
+  /* existing, unfinished tasks you can drop onto the day being added to */
+  function renderPick() {
+    var box = $("qPick"); if (!box || !quickDate) return;
+    var d = quickDate, q = (($("qText") || {}).value || "").trim().toLowerCase();
+    var open = S.tasks.filter(function (t) {
+      return !t.done && !t.slots.some(function (x) { return x.slice(0, 10) === d; });
+    });
+    var hits = open.filter(function (t) { return !q || (t.text + " " + t.section).toLowerCase().indexOf(q) >= 0; });
+    if (!open.length) { box.innerHTML = ""; return; }
+    var lim = pickAll || q ? 40 : 6, shown = hits.slice(0, lim);
+    box.innerHTML = '<div class="qpick-h">Or add an unfinished task <small>' + (q ? hits.length + " match" + (hits.length === 1 ? "" : "es") : open.length + " not done") + ' &middot; tap to add with the blocks above</small></div>' +
+      (shown.length ? shown.map(function (t) {
+        var next = t.slots.map(function (x) { return x.slice(0, 10); }).sort()[0];
+        return '<button type="button" class="qpick-it" data-act="qpickadd" data-id="' + t.id + '"><span class="chip" style="--fillc:var(--' + secColor(t.section) + 'b)">' + esc(t.section) + '</span>' +
+          '<span class="qpick-t">' + esc(t.text) + '</span><small>' + (next ? fmtDay(next) : "not scheduled") + '</small><b>+</b></button>';
+      }).join("") : '<div class="empty2">No unfinished task matches. Press Add to create it.</div>') +
+      (hits.length > shown.length ? '<button type="button" class="linkbtn" data-act="qpickall">Show all ' + hits.length + '</button>' : "");
+  }
   function secColor(sec) { var i = sections().indexOf(sec); return PAL[(i < 0 ? 0 : i) % PAL.length]; }
   function inWeek(t) { var we = addDays(weekStart, 6); return t.slots.some(function (s) { var d = s.slice(0, 10); return d >= weekStart && d <= we; }); }
   function dayItems(d) {
@@ -661,11 +688,13 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
           '<input class="qt" type="text" id="qText" placeholder="Task, for example: Draft 4.3 figures" aria-label="New task">' +
           '<span class="blks" id="qBlocks" role="group" aria-label="Study blocks (pick one or more)">' + BLOCKS.map(function (b) { var on = b.id === db; return '<button type="button" class="bpick' + (on ? " on" : "") + '" data-act="blk" data-b="' + b.id + '" aria-pressed="' + on + '">' + b.label + '</button>'; }).join("") + '</span>' +
           '<input type="text" id="qSec" list="secList" placeholder="Section" aria-label="Section">' +
-          '<button class="btn primary" type="submit">Add</button><button class="btn" type="button" data-act="qcancel" aria-label="Cancel">&times;</button></form>';
+          '<button class="btn primary" type="submit">Add</button><button class="btn" type="button" data-act="qcancel" aria-label="Cancel">&times;</button></form>' +
+          '<div class="qpick" id="qPick"></div>';
       }
       h += '</div>';
     }
     $("wkDays").innerHTML = h;
+    renderPick();
   }
   function pickedBlocks(group) {
     return group ? Array.prototype.map.call(group.querySelectorAll(".bpick.on"), function (b) { return b.dataset.b; }) : [];
@@ -700,6 +729,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     ta.style.height = ""; ta.style.flex = "";
     ta.style.minHeight = need + "px";
   }
+  document.addEventListener("input", function (e) { if (e.target && e.target.id === "qText") renderPick(); });
   $("wkNotes").addEventListener("input", function () {
     growNotes();
     var v = this.value, wk = weekStart;
@@ -995,7 +1025,17 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     }
     if (a === "prio") { var tp = task(id); if (tp) { tp.priority = !tp.priority; touch(); } return; }
     if (a === "qadd") { quickDate = el.dataset.date; render(); var qf = $("qText"); if (qf) qf.focus(); return; }
-    if (a === "qcancel") { quickDate = null; render(); return; }
+    if (a === "qcancel") { quickDate = null; pickAll = false; render(); return; }
+    if (a === "qpickall") { pickAll = true; renderPick(); return; }
+    if (a === "qpickadd") {
+      var pt = task(id), pd = quickDate; if (!pt || !pd) return;
+      var pb = $("qBlocks") ? pickedBlocks($("qBlocks")) : [];
+      if (!pb.length) pb = [defaultBlock(pd)];
+      pb.forEach(function (b) { var k = pd + "|" + b; if (pt.slots.indexOf(k) < 0) pt.slots.push(k); });
+      touch();
+      var qf = $("qText"); if (qf) qf.focus();
+      return;
+    }
     if (a === "clearday") {
       var cd = el.dataset.date;
       clearTimeout(pendingClearT);
