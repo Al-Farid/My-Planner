@@ -18,12 +18,15 @@ data class Task(
     val slots: List<String>
 )
 
+data class Habit(val name: String, val days: Set<String>)
+
 data class Plan(
     val sections: List<String>,
     val tasks: List<Task>,
     val notes: Map<String, String>,
     val updated: Long,
-    val labels: Map<String, String> = emptyMap()
+    val labels: Map<String, String> = emptyMap(),
+    val habits: List<Habit> = emptyList()
 )
 
 /** A line in the widget list. */
@@ -74,7 +77,13 @@ object PlanData {
             val b = o.optJSONObject("blocks")
             val labels = mutableMapOf<String, String>()
             b?.keys()?.forEach { key -> labels[key] = b.optString(key) }
-            Plan(sections, tasks, notes, o.optLong("updated", 0L), labels)
+            val ha = o.optJSONArray("habits")
+            val habits = (0 until (ha?.length() ?: 0)).mapNotNull { i ->
+                val h = ha!!.optJSONObject(i) ?: return@mapNotNull null
+                val dd = h.optJSONArray("d")
+                Habit(h.optString("n"), (0 until (dd?.length() ?: 0)).map { dd!!.optString(it) }.toSet())
+            }
+            Plan(sections, tasks, notes, o.optLong("updated", 0L), labels, habits)
         } catch (e: Exception) {
             null
         }

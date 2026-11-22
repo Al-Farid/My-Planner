@@ -119,6 +119,18 @@ function randomCode() {
   return Array.from(a, (b) => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[b % 62]).join("") + "w2";
 }
 
+/* Habits for the widget: each habit's name and the days it was done in the last three weeks. */
+function habitFeed(d) {
+  const hs = Array.isArray(d.habits) ? d.habits : [];
+  const log = d.habitLog && typeof d.habitLog === "object" ? d.habitLog : {};
+  const since = new Date(); since.setDate(since.getDate() - 21);
+  const cut = since.getFullYear() + "-" + String(since.getMonth() + 1).padStart(2, "0") + "-" + String(since.getDate()).padStart(2, "0");
+  return hs.map((h) => ({
+    n: String(h.name || ""),
+    d: Object.keys(log).filter((k) => k >= cut && Array.isArray(log[k]) && log[k].includes(h.id)).sort()
+  }));
+}
+
 function compactPlan(d, uid) {
   const tasks = Array.isArray(d.tasks) ? d.tasks : [];
   const sections = [];
@@ -132,7 +144,8 @@ function compactPlan(d, uid) {
       l: Array.isArray(t.slots) ? t.slots.filter((x) => typeof x === "string") : []
     })),
     notes: d.notes && typeof d.notes === "object" && !Array.isArray(d.notes) ? d.notes : {},
-    blocks: d.blocks && typeof d.blocks === "object" && !Array.isArray(d.blocks) ? d.blocks : {}
+    blocks: d.blocks && typeof d.blocks === "object" && !Array.isArray(d.blocks) ? d.blocks : {},
+    habits: habitFeed(d)
   };
 }
 

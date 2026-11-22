@@ -126,6 +126,9 @@ object BoardRenderer {
                 ts.all { it.done }, false, chip = "${ts.count { it.done }}/${ts.size}")
         }
         val note = plan.notes[wsIso].orEmpty()
+        val habits = plan.habits.map { h ->
+            Entry(h.name, weekDates.map { h.days.contains(it) }, 0, 0, h.days.contains(todayIso), false)
+        }
 
         // Size the left boxes by what they hold, within limits.
         val head = 30f * s
@@ -135,13 +138,15 @@ object BoardRenderer {
         var hP = need(prio.size, 1)
         var hT = need(todo.size, 1)
         val hNmin = need(0, 2)
-        val sum = hF + hP + hT + hNmin
-        if (sum > avail) { val k = avail / sum; hF *= k; hP *= k; hT *= k }
+        var hH = need(habits.size, 1)
+        val sum = hF + hP + hT + hNmin + hH + gap
+        if (sum > avail + gap) { val k = (avail - gap) / (sum - gap); hF *= k; hP *= k; hT *= k; hH *= k }
         var y = top
         val rF = RectF(lx, y, lx + colW, y + hF); y += hF + gap
         val rP = RectF(lx, y, lx + colW, y + hP); y += hP + gap
         val rT = RectF(lx, y, lx + colW, y + hT); y += hT + gap
-        val rN = RectF(lx, y, lx + colW, bottom)
+        val rN = RectF(lx, y, lx + colW, bottom - hH - gap)
+        val rH = RectF(lx, bottom - hH, lx + colW, bottom)
 
         card(c, rF, "Today's Focus", shortDay(today), s, today = true, gold = false)
         rows(c, rF, todayList, s, Mode.DAY, "Nothing scheduled today")
@@ -151,6 +156,8 @@ object BoardRenderer {
         rows(c, rT, todo, s, Mode.TODO, "No sections scheduled this week")
         card(c, rN, "Notes", "week of ${ws.monthValue}/${ws.dayOfMonth}", s)
         notes(c, rN, note, s)
+        card(c, rH, "Today's Habits", shortDay(today), s)
+        rows(c, rH, habits, s, Mode.HABIT, "No habits yet", todayIndex = weekDates.indexOf(todayIso))
 
         // ---- Right column: the seven days ----
         val dayH = (bottom - top - gap * 6) / 7f
@@ -165,7 +172,7 @@ object BoardRenderer {
         return bmp
     }
 
-    private enum class Mode { DAY, PRIO, TODO }
+    private enum class Mode { DAY, PRIO, TODO, HABIT }
 
     private fun shortDay(d: LocalDate) =
         d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US) + " " + d.monthValue + "/" + d.dayOfMonth
@@ -199,7 +206,7 @@ object BoardRenderer {
         if (sub.isNotEmpty()) c.drawText(sub, x0 + tw + gapW, base, sp)
     }
 
-    private fun rows(c: Canvas, r: RectF, items: List<Entry>, s: Float, mode: Mode, empty: String) {
+    private fun rows(c: Canvas, r: RectF, items: List<Entry>, s: Float, mode: Mode, empty: String, todayIndex: Int = -1) {
         val head = 30f * s
         val lh = 27f * s
         val padX = 10f * s
@@ -235,9 +242,25 @@ object BoardRenderer {
                     small.typeface = sans; small.color = MUTED
                     x += cw + 8f * s
                 }
-                Mode.PRIO -> {}
+                Mode.PRIO, Mode.HABIT -> {}
             }
             var right = r.right - padX
+            if (mode == Mode.HABIT) {
+                val dot = 4.5f * s
+                val step = 12f * s
+                val p = Paint(Paint.ANTI_ALIAS_FLAG)
+                for (k in 0 until 7) {
+                    val cx = right - (6 - k) * step - dot
+                    p.style = Paint.Style.FILL
+                    p.color = if (e.blocks.getOrElse(k) { false }) 0xFF1F8F6A.toInt() else OFF
+                    c.drawCircle(cx, mid, dot, p)
+                    if (k == todayIndex) {
+                        p.style = Paint.Style.STROKE; p.strokeWidth = 1.3f * s; p.color = INK
+                        c.drawCircle(cx, mid, dot + 1.2f * s, p)
+                    }
+                }
+                right -= 7 * step + 6f * s
+            }
             if (e.star && mode != Mode.TODO) {
                 val st = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 14f * s; color = GOLD; textAlign = Paint.Align.RIGHT }
                 c.drawText("★", right, base, st)
