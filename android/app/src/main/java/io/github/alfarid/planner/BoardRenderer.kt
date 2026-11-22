@@ -137,16 +137,24 @@ object BoardRenderer {
         var hF = need(todayList.size, 1)
         var hP = need(prio.size, 1)
         var hT = need(todo.size, 1)
-        val hNmin = need(0, 2)
         var hH = need(habits.size, 1)
-        val sum = hF + hP + hT + hNmin + hH + gap
-        if (sum > avail + gap) { val k = (avail - gap) / (sum - gap); hF *= k; hP *= k; hT *= k; hH *= k }
+        // Notes take only the lines they need (at least 2); spare height goes to Focus, Habits and Notes.
+        val noteLines = wrapLines(note, TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = sans; textSize = 13.5f * s }, colW - 20f * s).size
+        var hN = head + 26f * s * maxOf(noteLines, 2) + 6f * s
+        val boxes = avail - gap // five boxes, four gaps (avail already holds three)
+        val sum = hF + hP + hT + hN + hH
+        if (sum > boxes) {
+            val k = boxes / sum; hF *= k; hP *= k; hT *= k; hN *= k; hH *= k
+        } else {
+            val extra = boxes - sum
+            hF += extra * 0.3f; hH += extra * 0.3f; hN += extra * 0.4f
+        }
         var y = top
         val rF = RectF(lx, y, lx + colW, y + hF); y += hF + gap
         val rP = RectF(lx, y, lx + colW, y + hP); y += hP + gap
         val rT = RectF(lx, y, lx + colW, y + hT); y += hT + gap
-        val rN = RectF(lx, y, lx + colW, bottom - hH - gap)
-        val rH = RectF(lx, bottom - hH, lx + colW, bottom)
+        val rN = RectF(lx, y, lx + colW, y + hN); y += hN + gap
+        val rH = RectF(lx, y, lx + colW, bottom)
 
         card(c, rF, "Today's Focus", shortDay(today), s, today = true, gold = false)
         rows(c, rF, todayList, s, Mode.DAY, "Nothing scheduled today")
@@ -323,6 +331,15 @@ object BoardRenderer {
         if (note.isBlank()) return
         val ink = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = sans; textSize = 13.5f * s; color = INK }
         val maxW = r.width() - 2 * padX
+        val lines = wrapLines(note, ink, maxW)
+        lines.take(cap).forEachIndexed { i, ln ->
+            val txt = if (i == cap - 1 && lines.size > cap) "$ln …" else ln
+            c.drawText(TextUtils.ellipsize(txt, ink, maxW, TextUtils.TruncateAt.END).toString(), r.left + padX, top + (i + 1) * lh - 8f * s, ink)
+        }
+    }
+
+    private fun wrapLines(note: String, ink: TextPaint, maxW: Float): List<String> {
+        if (note.isBlank()) return emptyList()
         val lines = mutableListOf<String>()
         note.trim().split("\n").forEach { para ->
             var cur = ""
@@ -332,9 +349,6 @@ object BoardRenderer {
             }
             lines += cur
         }
-        lines.take(cap).forEachIndexed { i, ln ->
-            val txt = if (i == cap - 1 && lines.size > cap) "$ln …" else ln
-            c.drawText(TextUtils.ellipsize(txt, ink, maxW, TextUtils.TruncateAt.END).toString(), r.left + padX, top + (i + 1) * lh - 8f * s, ink)
-        }
+        return lines
     }
 }

@@ -1,7 +1,7 @@
 // Keeps the planner opening fast and working offline.
 // Your own files: always try the network first so updates show up, fall back to the saved copy offline.
 // Fonts and the Firebase library: use the saved copy, fetch once.
-const CACHE = "my-planner-v11";
+const CACHE = "my-planner-v12";
 const SHELL = ["./", "./index.html", "./app.js", "./firebase-config.js", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png"];
 
@@ -19,7 +19,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin === self.location.origin) {
     e.respondWith(
-      fetch(req).then((res) => {
+      fetch(req, { cache: "no-cache" }).then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
         return res;
