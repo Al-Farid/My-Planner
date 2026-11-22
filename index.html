@@ -418,7 +418,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
 <script type="module" src="app.js"></script>
 <script>
 (function () {
-  var LS = "proposal-tracker-v1", LSV = "proposal-tracker-view2";
+  var LS = "proposal-tracker-v1", LSV = "proposal-tracker-view2", LSB = "proposal-tracker-base1";
   var BLOCKS = [{ id: "am", label: "9–12" }, { id: "pm", label: "2–5" }, { id: "ev", label: "6–9" }];
   var PAL = ["c1", "c2", "c3", "c4", "c5", "c6"];
   var uid = function () { return Math.random().toString(36).slice(2, 9); };
@@ -495,6 +495,71 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
   var dbDoc = null, saveT = null, saving = false, dirty = false, statusMsg = "Loading…";
   function setStatus(m) { statusMsg = m; $("status").textContent = m; }
   function persistLocal() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} }
+  /* base = the last copy this device knows matches the account; lets us merge instead of overwrite */
+  var base = null, pendingRemote = null, retryT = null;
+  try { var rb = localStorage.getItem(LSB); if (rb) base = JSON.parse(rb); } catch (e) {}
+  function setBase(d) { base = JSON.parse(JSON.stringify(d)); try { localStorage.setItem(LSB, JSON.stringify(base)); } catch (e) {} }
+  function payload() {
+    return JSON.parse(JSON.stringify({ tasks: S.tasks, notes: S.notes || {}, blocks: S.blocks || {}, habits: S.habits || [], habitLog: S.habitLog || {}, updated: S.updated || 0 }));
+  }
+  function same(x, y) { return JSON.stringify(x === undefined ? null : x) === JSON.stringify(y === undefined ? null : y); }
+  function content(d) { return d ? { tasks: d.tasks || [], notes: d.notes || {}, blocks: d.blocks || {}, habits: d.habits || [], habitLog: d.habitLog || {} } : null; }
+  function mergeList(b, l, r) {
+    b = b || []; l = l || []; r = r || [];
+    var bm = {}, lm = {}, rm = {};
+    b.forEach(function (x) { bm[x.id] = x; }); l.forEach(function (x) { lm[x.id] = x; }); r.forEach(function (x) { rm[x.id] = x; });
+    var out = [];
+    r.forEach(function (x) {
+      if (bm[x.id] && !lm[x.id]) return;                       // deleted on this device
+      out.push(lm[x.id] && !same(lm[x.id], bm[x.id]) ? lm[x.id] : x);  // changed here wins, else theirs
+    });
+    l.forEach(function (x, i) {                                // added on this device
+      if (rm[x.id] || bm[x.id]) return;
+      var at = -1;
+      for (var j = i - 1; j >= 0 && at < 0; j--) { for (var k = 0; k < out.length; k++) if (out[k].id === l[j].id) { at = k; break; } }
+      out.splice(at + 1, 0, x);
+    });
+    var ids = function (a) { return a.map(function (x) { return x.id; }).join(","); };
+    if (ids(l) !== ids(b) && ids(r) === ids(b)) {             // reordered only here: keep this order
+      var pos = {}; l.forEach(function (x, i) { pos[x.id] = i; });
+      out.sort(function (p, q) { return (p.id in pos ? pos[p.id] : 1e9) - (q.id in pos ? pos[q.id] : 1e9); });
+    }
+    return out;
+  }
+  function mergeMap(b, l, r) {
+    b = b || {}; l = l || {}; r = r || {};
+    var out = {}, keys = {};
+    [b, l, r].forEach(function (m) { Object.keys(m).forEach(function (k) { keys[k] = 1; }); });
+    Object.keys(keys).forEach(function (k) {
+      var v = !same(l[k], b[k]) ? l[k] : r[k];
+      if (v !== undefined && v !== null) out[k] = v;
+    });
+    return out;
+  }
+  function mergeLog(b, l, r) {
+    var flat = function (m) { var o = {}; Object.keys(m || {}).forEach(function (d) { (m[d] || []).forEach(function (id) { o[d + "|" + id] = 1; }); }); return o; };
+    var B = flat(b), L = flat(l), R = flat(r), out = {};
+    Object.keys(L).forEach(function (k) { if (!B[k]) R[k] = 1; });
+    Object.keys(B).forEach(function (k) { if (!L[k]) delete R[k]; });
+    Object.keys(R).forEach(function (k) { var p = k.split("|"); (out[p[0]] = out[p[0]] || []).push(p[1]); });
+    return out;
+  }
+  function merge3(b, l, r) {
+    if (!r) return l;
+    if (b && same(content(b), content(r))) return l;           // nobody else changed anything
+    var bb = b || { tasks: [], notes: {}, blocks: {}, habits: [], habitLog: {} };
+    if (!b) { bb = JSON.parse(JSON.stringify(r)); }            // no history: keep both sides, nothing is deleted
+    var m = {
+      tasks: mergeList(b ? bb.tasks : [], l.tasks, r.tasks),
+      notes: mergeMap(bb.notes, l.notes, r.notes),
+      blocks: mergeMap(bb.blocks, l.blocks, r.blocks),
+      habits: mergeList(b ? bb.habits : [], l.habits, r.habits),
+      habitLog: mergeLog(b ? bb.habitLog : {}, l.habitLog, r.habitLog)
+    };
+    if (!b) { m.notes = mergeMap({}, l.notes, r.notes); m.blocks = mergeMap({}, l.blocks, r.blocks); }
+    m.updated = Math.max(l.updated || 0, r.updated || 0) + 1;
+    return m;
+  }
   function queueSave() {
     S.updated = Date.now(); persistLocal(); dirty = true;
     setStatus(dbDoc ? "Saving…" : "Saved on this device");
@@ -504,12 +569,42 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
   function flush() {
     if (!dbDoc) { dirty = false; return; }
     if (saving) { saveT = setTimeout(flush, 300); return; }
-    saving = true; dirty = false;
-    dbDoc.set({ tasks: JSON.parse(JSON.stringify(S.tasks)), notes: JSON.parse(JSON.stringify(S.notes || {})), blocks: JSON.parse(JSON.stringify(S.blocks || {})), habits: JSON.parse(JSON.stringify(S.habits || [])), habitLog: JSON.parse(JSON.stringify(S.habitLog || {})), updated: S.updated }).then(function () {
+    saving = true; dirty = false; clearTimeout(retryT);
+    var mine = payload();
+    var write = dbDoc.merge
+      ? dbDoc.merge(function (srv) { return merge3(base, mine, srv); })
+      : dbDoc.set(mine).then(function () { return mine; });
+    write.then(function (out) {
       saving = false;
-      if (dirty) flush(); else setStatus("All changes saved");
-    }, function () { saving = false; dirty = true; setStatus("Could not reach your account. Saved on this device."); });
+      setBase(out);
+      if (!dirty && !same(content(out), content(mine))) {      // other devices' changes came in with the merge
+        S = migrate(JSON.parse(JSON.stringify(out))); persistLocal(); render();
+      } else if (!dirty) { S.updated = out.updated; persistLocal(); }
+      if (dirty) flush(); else { setStatus("All changes saved"); applyPending(); }
+    }, function () {
+      saving = false; dirty = true;
+      setStatus("Saved on this device. Will sync when online.");
+      retryT = setTimeout(flush, 8000);
+    });
   }
+  function busy() { return dirty || saving || paintMode || drag || quickDate || bmState || editing; }
+  function applyRemote(d) {
+    if (!d || !Array.isArray(d.tasks)) return;
+    if (busy()) { pendingRemote = d; return; }
+    pendingRemote = null;
+    if (base && (d.updated || 0) < (base.updated || 0)) return;                             // older than what we have
+    var local = payload();
+    if (base && !same(content(local), content(base))) { dirty = true; flush(); return; }   // unsynced edits here: merge
+    if (!base && !same(content(local), content(d))) { dirty = true; flush(); return; }     // first sync on this device: keep both
+    if (!same(content(local), content(d))) {
+      S = migrate(JSON.parse(JSON.stringify({ tasks: d.tasks, notes: d.notes, blocks: d.blocks, habits: d.habits, habitLog: d.habitLog, updated: d.updated })));
+      persistLocal(); render();
+    }
+    setBase(d);
+    setStatus("All changes saved");
+  }
+  function applyPending() { if (pendingRemote && !busy()) applyRemote(pendingRemote); }
+  setInterval(applyPending, 1500);
 
   /* ---------- helpers ---------- */
   function sections() { var o = []; S.tasks.forEach(function (t) { if (o.indexOf(t.section) < 0) o.push(t.section); }); return o; }
@@ -1355,13 +1450,10 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
       }, function () { savesCol = null; renderSaves(); });
       dbDoc.onSnapshot(function (snap) {
         clearTimeout(wait);
-        if (snap.metadata.hasPendingWrites || dirty || saving || paintMode || drag || quickDate) return;
+        if (snap.metadata.hasPendingWrites) return;
         var d = snap.exists ? snap.data() : null;
-        if (d && Array.isArray(d.tasks) && (d.updated || 0) > (S.updated || 0)) {
-          S = migrate({ tasks: d.tasks.map(function (t) { return Object.assign({}, t); }), notes: d.notes, blocks: d.blocks, habits: d.habits, habitLog: d.habitLog, updated: d.updated });
-          persistLocal(); render(); setStatus("All changes saved");
-        } else if (S.updated && (!d || S.updated > (d.updated || 0))) { dirty = true; flush(); }
-        else setStatus("All changes saved");
+        if (!d) { if (S.tasks.length || (S.habits || []).length) { dirty = true; flush(); } return; }
+        applyRemote(d);
       }, function () { clearTimeout(wait); dbDoc = null; setStatus("Saved on this device only"); });
     }, function () { clearTimeout(wait); setStatus("Saved on this device only"); });
   } catch (e) { setStatus("Saved on this device only"); }

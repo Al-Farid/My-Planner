@@ -7,7 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, collection, setDoc, deleteDoc, onSnapshot, getDoc
+  doc, collection, setDoc, deleteDoc, onSnapshot, getDoc, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -33,6 +33,13 @@ const fs = initializeFirestore(app, {
 function wrapDoc(ref) {
   return {
     set: (data) => setDoc(ref, data),
+    // Read the server copy and write fn(serverCopy) in one step, so edits from other devices are never overwritten.
+    merge: (fn) => runTransaction(fs, async (tx) => {
+      const s = await tx.get(ref);
+      const out = fn(s.exists() ? s.data() : null);
+      tx.set(ref, out);
+      return out;
+    }),
     delete: () => deleteDoc(ref),
     onSnapshot: (cb, onErr) => onSnapshot(ref,
       (s) => cb({ exists: s.exists(), data: () => s.data(), metadata: s.metadata }), onErr)
@@ -174,14 +181,16 @@ async function setupWidgetFeed(uid) {
   try { const s = await getDoc(sref); code = s.exists() ? s.data().feedId : null; } catch (e) { /* offline: try later */ }
   if (!code) { code = randomCode(); await setDoc(sref, { feedId: code }, { merge: true }); }
   const fref = doc(fs, "feeds/" + code);
-  let publishedOnce = false;
+  let publishedOnce = false, lastPub = null;
   feedRef = fref; feedUid = uid;
   // Publish after your own edits, and once per app start from the server's copy.
   onSnapshot(doc(fs, "users/" + uid + "/tracker/state"), { includeMetadataChanges: true }, (s) => {
     if (!s.exists()) return;
-    const local = s.metadata.hasPendingWrites;
-    if (!local && (s.metadata.fromCache || publishedOnce)) return;
-    publishedOnce = true;
+    // Publish whenever the confirmed copy changes (from any device), and once per app start.
+    if (s.metadata.fromCache || s.metadata.hasPendingWrites) return;
+    const up = s.data().updated || 0;
+    if (publishedOnce && up === lastPub) return;
+    publishedOnce = true; lastPub = up;
     lastPlan = s.data();
     publishFeed();
   });
