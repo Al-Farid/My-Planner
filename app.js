@@ -126,6 +126,18 @@ function randomCode() {
   return Array.from(a, (b) => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[b % 62]).join("") + "w2";
 }
 
+/* First day a habit can count as missed: Mon 23 Nov 2026, or the day it was added if later. */
+function habitStart(h) {
+  let from = "2026-11-23";
+  const ts = parseInt(String(h.id || "").slice(1, -4), 36);
+  if (ts > 1.6e12 && ts < 4e12) {
+    const c = new Date(ts);
+    const cs = c.getFullYear() + "-" + String(c.getMonth() + 1).padStart(2, "0") + "-" + String(c.getDate()).padStart(2, "0");
+    if (cs > from) from = cs;
+  }
+  return from;
+}
+
 /* Habits for the widget: each habit's name and the days it was done in the last three weeks. */
 function habitFeed(d) {
   const hs = Array.isArray(d.habits) ? d.habits : [];
@@ -134,6 +146,7 @@ function habitFeed(d) {
   const cut = since.getFullYear() + "-" + String(since.getMonth() + 1).padStart(2, "0") + "-" + String(since.getDate()).padStart(2, "0");
   return hs.map((h) => ({
     n: String(h.name || ""),
+    f: habitStart(h),
     d: Object.keys(log).filter((k) => k >= cut && Array.isArray(log[k]) && log[k].includes(h.id)).sort()
   }));
 }

@@ -186,6 +186,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .hc:hover { background: var(--surface2); }
 .hc.on::after { content: ""; position: absolute; inset: 7px; border-radius: 4px; background: var(--c2); }
 .hc.fut { cursor: default; opacity: .45; }
+.hc.miss::before, .hc.miss::after { content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 2px; border-radius: 1px; background: #c0392b; }
+.hc.miss::before { transform: translate(-50%, -50%) rotate(45deg); }
+.hc.miss::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.hweek i.miss { background: #d9534f; }
 .habtab td.cnt { padding: 0 8px; white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
 .habhint { color: var(--muted); font-size: 12px; margin: 8px 2px 0; }
 .qpick { display: flex; flex-direction: column; gap: 4px; padding: 0 10px 10px; }
@@ -900,6 +904,14 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
   /* ---------- habits ---------- */
   var habMonth = todayStr().slice(0, 7), habDel = null, habDelT = null;
   function habDone(id, d) { var l = S.habitLog[d]; return !!(l && l.indexOf(id) >= 0); }
+  /* Missed = a past day (before today) not ticked, counted from Mon 23 Nov 2026 or the day the habit was added. */
+  var HAB_MISS_FROM = "2026-11-23";
+  function habStart(h) {
+    var t = parseInt(String(h.id).slice(1, -4), 36), from = HAB_MISS_FROM;
+    if (t > 1.6e12 && t < 4e12) { var c = new Date(t), cs = c.getFullYear() + "-" + ("0" + (c.getMonth() + 1)).slice(-2) + "-" + ("0" + c.getDate()).slice(-2); if (cs > from) from = cs; }
+    return from;
+  }
+  function habMissed(h, d) { return d < todayStr() && d >= habStart(h) && !habDone(h.id, d); }
   function habToggle(id, d) {
     var l = S.habitLog[d] || [], i = l.indexOf(id);
     if (i >= 0) l.splice(i, 1); else l.push(id);
@@ -918,7 +930,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     $("habLbl").textContent = fmtDay(today);
     $("wkHabits").innerHTML = S.habits.length ? S.habits.map(function (h) {
       var on = habDone(h.id, today), dots = "";
-      for (var i = 0; i < 7; i++) { var dd = addDays(ws, i); dots += '<i class="' + (habDone(h.id, dd) ? "on" : "") + (dd === today ? " td" : "") + '"></i>'; }
+      for (var i = 0; i < 7; i++) { var dd = addDays(ws, i); dots += '<i class="' + (habDone(h.id, dd) ? "on" : habMissed(h, dd) ? "miss" : "") + (dd === today ? " td" : "") + '"></i>'; }
       return '<div class="it' + (on ? " done" : "") + '"><input type="checkbox" data-act="habtog" data-id="' + h.id + '" data-date="' + today + '"' + (on ? " checked" : "") + ' aria-label="' + esc(h.name) + ' done today">' +
         '<span class="t2">' + esc(h.name) + '</span><span class="hweek" title="This week, Monday to Sunday">' + dots + '</span></div>';
     }).join("") : '<div class="empty2">No habits yet. <button type="button" class="linkbtn" data-act="view" data-view="habits">Add habits</button></div>';
@@ -935,10 +947,10 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     var body = S.habits.map(function (h) {
       var cnt = 0, upto = 0;
       var cells = dates.map(function (ds) {
-        var on = habDone(h.id, ds), fut = ds > today;
+        var on = habDone(h.id, ds), fut = ds > today, miss = habMissed(h, ds);
         if (on) cnt++; if (!fut) upto++;
-        return '<td class="' + (ds === today ? "td" : "") + '"><button type="button" class="hc' + (on ? " on" : "") + (fut ? " fut" : "") + '"' + (fut ? " disabled" : ' data-act="habtog" data-id="' + h.id + '" data-date="' + ds + '"') +
-          ' aria-label="' + esc(h.name) + ' ' + ds + (on ? " done" : "") + '"></button></td>';
+        return '<td class="' + (ds === today ? "td" : "") + '"><button type="button" class="hc' + (on ? " on" : "") + (miss ? " miss" : "") + (fut ? " fut" : "") + '"' + (fut ? " disabled" : ' data-act="habtog" data-id="' + h.id + '" data-date="' + ds + '"') +
+          ' aria-label="' + esc(h.name) + ' ' + ds + (on ? " done" : miss ? " missed" : "") + '"></button></td>';
       }).join("");
       var warn = habDel === h.id;
       return '<tr><th class="hn"><button type="button" class="hname" data-act="habren" data-id="' + h.id + '">' + esc(h.name) + '</button>' +

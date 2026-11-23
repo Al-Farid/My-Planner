@@ -58,7 +58,8 @@ object BoardRenderer {
 
     private class Entry(
         val text: String, val blocks: List<Boolean>, val color: Int, val light: Int,
-        val done: Boolean, val star: Boolean, val chip: String = "", val sub: String = ""
+        val done: Boolean, val star: Boolean, val chip: String = "", val sub: String = "",
+        val miss: List<Boolean> = emptyList()
     )
 
     fun render(ctx: Context, plan: Plan?, today: LocalDate, wPx: Int, hPx: Int, connected: Boolean): Bitmap {
@@ -127,7 +128,8 @@ object BoardRenderer {
         }
         val note = plan.notes[wsIso].orEmpty()
         val habits = plan.habits.map { h ->
-            Entry(h.name, weekDates.map { h.days.contains(it) }, 0, 0, h.days.contains(todayIso), false)
+            Entry(h.name, weekDates.map { h.days.contains(it) }, 0, 0, h.days.contains(todayIso), false,
+                miss = weekDates.map { it < todayIso && it >= h.from && !h.days.contains(it) })
         }
 
         // Size the left boxes by what they hold, within limits.
@@ -260,7 +262,11 @@ object BoardRenderer {
                 for (k in 0 until 7) {
                     val cx = right - (6 - k) * step - dot
                     p.style = Paint.Style.FILL
-                    p.color = if (e.blocks.getOrElse(k) { false }) 0xFF1F8F6A.toInt() else OFF
+                    p.color = when {
+                        e.blocks.getOrElse(k) { false } -> 0xFF1F8F6A.toInt()
+                        e.miss.getOrElse(k) { false } -> 0xFFD9534F.toInt()
+                        else -> OFF
+                    }
                     c.drawCircle(cx, mid, dot, p)
                     if (k == todayIndex) {
                         p.style = Paint.Style.STROKE; p.strokeWidth = 1.3f * s; p.color = INK

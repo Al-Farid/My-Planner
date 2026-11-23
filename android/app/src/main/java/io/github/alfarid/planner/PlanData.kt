@@ -18,7 +18,7 @@ data class Task(
     val slots: List<String>
 )
 
-data class Habit(val name: String, val days: Set<String>)
+data class Habit(val name: String, val days: Set<String>, val from: String = "2026-11-23")
 
 data class Plan(
     val sections: List<String>,
@@ -81,7 +81,7 @@ object PlanData {
             val habits = (0 until (ha?.length() ?: 0)).mapNotNull { i ->
                 val h = ha!!.optJSONObject(i) ?: return@mapNotNull null
                 val dd = h.optJSONArray("d")
-                Habit(h.optString("n"), (0 until (dd?.length() ?: 0)).map { dd!!.optString(it) }.toSet())
+                Habit(h.optString("n"), (0 until (dd?.length() ?: 0)).map { dd!!.optString(it) }.toSet(), h.optString("f", "2026-11-23"))
             }
             Plan(sections, tasks, notes, o.optLong("updated", 0L), labels, habits)
         } catch (e: Exception) {
