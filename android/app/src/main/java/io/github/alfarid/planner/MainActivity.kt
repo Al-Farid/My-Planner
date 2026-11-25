@@ -51,7 +51,7 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.open).setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Config.PLANNER_URL)))
         }
-        slider(R.id.calTransp, R.id.calTranspLbl, "calTransp", 30, "Calendar widget transparency") { CalendarWidget.refreshAll(this) }
+        slider(R.id.calTransp, R.id.calTranspLbl, "calTransp", 15, "Calendar widget transparency") { CalendarWidget.refreshAll(this) }
         slider(R.id.boardTransp, R.id.boardTranspLbl, "boardTransp", 0, "Weekly plan widget transparency") { PlannerWidget.refreshAll(this) }
         handleLink(intent)
     }

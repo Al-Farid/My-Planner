@@ -68,7 +68,7 @@ class CalendarWidget : AppWidgetProvider() {
                 val today = LocalDate.now()
                 val month = YearMonth.from(today).plusMonths(Config.prefs(ctx).getInt("calOffset", 0).toLong())
                 val bmp = CalendarRenderer.render(ctx, PlanData.load(ctx), month, today, (wDp * scale).toInt(), (hDp * scale).toInt(), headerPx,
-                    Config.prefs(ctx).getInt("calTransp", 30))
+                    Config.prefs(ctx).getInt("calTransp", 15))
                 rv.setImageViewBitmap(R.id.cal_img, bmp)
             } catch (e: Throwable) { /* keep the last picture */ }
             rv.setOnClickPendingIntent(R.id.cal_prev, action(ctx, PREV, 11))

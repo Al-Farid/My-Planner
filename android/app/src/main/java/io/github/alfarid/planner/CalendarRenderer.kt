@@ -26,7 +26,8 @@ object CalendarRenderer {
     private const val DUE = 0xFFC0392B.toInt()
     private const val DUE_BG = 0xFFFBE3E0.toInt()
     private const val HEAD = 0xFFF6F8FC.toInt()
-    private const val PANEL = 0xFFE6E8EE.toInt()
+    private const val PANEL = 0xFFDCDCE1.toInt()
+    private const val CHIP_INK = 0xFF1C1C1E.toInt()
     private const val SEP = 0x33101D33
     private const val TODAY_RING = 0xFF6B7385.toInt()
     private const val FADED = 0xFF9AA1B0.toInt()
@@ -115,7 +116,7 @@ object CalendarRenderer {
         }
 
         val num = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = sansBold; textSize = 15f * dp; textAlign = Paint.Align.CENTER }
-        val chipP = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = sans; textSize = 10.5f * dp }
+        val chipP = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = sans; textSize = 11f * dp }
         val chipH = 15f * dp
         val gapY = 1.5f * dp
         for (i in 0 until rows * 7) {
@@ -136,36 +137,70 @@ object CalendarRenderer {
             } else num.color = if (inMonth) INK else FADED
             c.drawText(d.dayOfMonth.toString(), cx + cellW / 2, numBase, num)
 
-            val items = (byDay[iso] ?: mutableListOf()).sortedBy { it.kind }
+            // one copy of an event that two calendars both have (e.g. two Oman holiday calendars);
+            // Hijri dates ("13 Jumada …") first, like Samsung Calendar
+            val seen = HashSet<String>()
+            val items = (byDay[iso] ?: mutableListOf())
+                .filter { seen.add(it.kind.toString() + "|" + it.text.trim().lowercase(Locale.US)) }
+                .sortedWith(compareBy<Chip>({ it.kind }, { if (it.text.firstOrNull()?.isDigit() == true) 0 else 1 }))
             var y = cy + 27f * dp
             val bottom = cy + cellH - 3f * dp
-            val cap = ((bottom - y) / (chipH + gapY)).toInt().coerceAtLeast(0)
-            if (cap == 0) {
+            val lineH = 13.5f * dp
+            val chipPad = 2.5f * dp
+            val oneH = lineH + chipPad
+            if (bottom - y < oneH) {
                 if (items.isNotEmpty()) { p.color = MUTED; c.drawCircle(cx + cellW / 2, cy + cellH - 6f * dp, 2.5f * dp, p) }
                 continue
             }
-            val shown = if (items.size > cap) cap - 1 else items.size
-            for (k in 0 until shown) {
+            val textW = cellW - 3f * dp - 6f * dp
+            var drawn = 0
+            for (k in items.indices) {
                 val ch = items[k]
-                val r = RectF(cx + 1.5f * dp, y, cx + cellW - 1.5f * dp, y + chipH)
-                p.color = if (ch.kind == 1) DUE_BG else blend(ch.color, 0.55f)
-                p.alpha = if (inMonth) 235 else 110
+                chipP.typeface = if (ch.kind == 1) sansBold else sans
+                // wrap onto a second line when there is room, like Samsung's widget
+                val lines = wrap(ch.text, chipP, textW)
+                val leftAfter = items.size - k - 1
+                val roomForMore = if (leftAfter > 0) oneH + gapY else 0f
+                var n = minOf(lines.size, 2)
+                if (y + n * lineH + chipPad + roomForMore > bottom) n = 1
+                val hNeed = n * lineH + chipPad
+                if (y + hNeed > bottom) break
+                // keep the last line free for "+N more" when items would be left out
+                if (leftAfter > 0 && k > 0 && y + hNeed + gapY + oneH > bottom) break
+                val r = RectF(cx + 1.5f * dp, y, cx + cellW - 1.5f * dp, y + hNeed)
+                p.color = if (ch.kind == 1) DUE_BG else blend(ch.color, 0.48f)
+                p.alpha = if (inMonth) 255 else 120
                 c.drawRoundRect(r, 2.5f * dp, 2.5f * dp, p)
                 p.alpha = 255
-                chipP.color = if (ch.kind == 1) 0xFF8E1F14.toInt() else INK
-                chipP.typeface = if (ch.kind == 1) sansBold else sans
+                chipP.color = if (ch.kind == 1) 0xFF8E1F14.toInt() else CHIP_INK
                 chipP.isStrikeThruText = ch.done
                 chipP.alpha = if (!inMonth || ch.done) 120 else 255
-                val txt = TextUtils.ellipsize(ch.text, chipP, r.width() - 6f * dp, TextUtils.TruncateAt.END).toString()
-                c.drawText(txt, r.left + 3f * dp, r.bottom - 4f * dp, chipP)
-                y += chipH + gapY
+                for (li in 0 until n) {
+                    var t = lines[li]
+                    if (li == n - 1 && lines.size > n) t = TextUtils.ellipsize(lines.subList(li, lines.size).joinToString(""), chipP, textW, TextUtils.TruncateAt.END).toString()
+                    c.drawText(t, r.left + 3f * dp, y + (li + 1) * lineH - 2.5f * dp, chipP)
+                }
+                y += hNeed + gapY
+                drawn++
             }
-            if (items.size > shown) {
+            if (items.size > drawn) {
                 chipP.color = MUTED; chipP.isStrikeThruText = false; chipP.alpha = 255; chipP.typeface = sans
-                c.drawText("+${items.size - shown} more", cx + 4f * dp, y + chipH - 4f * dp, chipP)
+                c.drawText("+${items.size - drawn} more", cx + 4f * dp, minOf(y + lineH - 2f * dp, bottom), chipP)
             }
         }
         return bmp
+    }
+
+    /** Break text into lines that fit, splitting mid-word when needed (as Samsung Calendar does). */
+    private fun wrap(text: String, paint: TextPaint, maxW: Float): List<String> {
+        val out = mutableListOf<String>()
+        var i = 0
+        while (i < text.length && out.size < 4) {
+            val n = paint.breakText(text, i, text.length, true, maxW, null).coerceAtLeast(1)
+            out += text.substring(i, i + n)
+            i += n
+        }
+        return if (out.isEmpty()) listOf("") else out
     }
 
     private fun blend(color: Int, a: Float): Int {

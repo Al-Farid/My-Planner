@@ -178,7 +178,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .cal-c.td .cal-n { background: var(--ink); color: var(--surface); border-radius: 6px; padding: 0 5px; }
 .cal-c.sel { box-shadow: inset 0 0 0 2px var(--accent); }
 .cal-n { align-self: center; font-weight: 600; font-size: 14px; margin-bottom: 2px; }
-.cch { display: block; font-size: 11px; line-height: 1.35; padding: 1px 4px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: color-mix(in srgb, var(--cc, #8a93a8) 22%, var(--surface)); border-left: 3px solid var(--cc, #8a93a8); }
+.cch { display: block; font-size: 11px; line-height: 1.35; padding: 1px 4px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: color-mix(in srgb, var(--cc, #8a93a8) 48%, #fff); color: #1c1c1e; }
 .cch.k-due, .cch.k-secdue { --cc: #c0392b; background: #fbe3e0; color: #8e1f14; font-weight: 600; }
 .cch.done { text-decoration: line-through; opacity: .6; }
 .cch.more { background: none; border: 0; color: var(--muted); }
@@ -974,7 +974,10 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     if (!calHide["planner:tasks"]) dayItems(d).forEach(function (x) {
       out.push({ kind: "task", t: x.t.text, id: x.t.id, done: x.t.done, sec: x.t.section, blocks: x.blocks, order: 2 });
     });
-    out.sort(function (a, b) { return a.order - b.order || (a.tm || "").localeCompare(b.tm || ""); });
+    var seen = {};
+    out = out.filter(function (x) { var k = x.kind + "|" + String(x.t).trim().toLowerCase(); if (x.kind === "ev" && seen[k]) return false; seen[k] = 1; return true; });
+    var hijri = function (x) { return x.kind === "ev" && !x.tm && /^\d/.test(x.t) ? 0 : 1; };
+    out.sort(function (a, b) { return a.order - b.order || hijri(a) - hijri(b) || (a.tm || "").localeCompare(b.tm || ""); });
     return out;
   }
   function chip(it, full) {
