@@ -62,7 +62,11 @@ object BoardRenderer {
         val miss: List<Boolean> = emptyList()
     )
 
-    fun render(ctx: Context, plan: Plan?, today: LocalDate, wPx: Int, hPx: Int, connected: Boolean): Bitmap {
+    private var cardAlpha = 255
+
+    fun render(ctx: Context, plan: Plan?, today: LocalDate, wPx: Int, hPx: Int, connected: Boolean, transparency: Int = 0): Bitmap {
+        val t = transparency.coerceIn(0, 100)
+        cardAlpha = (255 - t * 1.4f).toInt().coerceIn(90, 255)
         fonts(ctx)
         val w = wPx.coerceAtLeast(200)
         val h = hPx.coerceAtLeast(200)
@@ -70,7 +74,7 @@ object BoardRenderer {
         val c = Canvas(bmp)
         val s = minOf(w / 760f, h / 1000f).coerceIn(0.35f, 3f)
 
-        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BG }
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BG; alpha = ((100 - t) * 2.55f).toInt() }
         c.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), 22f * s, 22f * s, bg)
 
         val pad = 16f * s
@@ -190,12 +194,12 @@ object BoardRenderer {
     private fun card(c: Canvas, r: RectF, title: String, sub: String, s: Float, today: Boolean = false, gold: Boolean = today) {
         val rad = 10f * s
         val head = 30f * s
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = SURFACE }
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = SURFACE; alpha = cardAlpha }
         c.drawRoundRect(r, rad, rad, fill)
         // header band
         c.save()
         c.clipRect(r.left, r.top, r.right, r.top + head)
-        c.drawRoundRect(r, rad, rad, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (today) TODAY else HEAD })
+        c.drawRoundRect(r, rad, rad, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (today) TODAY else HEAD; alpha = cardAlpha })
         c.restore()
         val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = LINE; strokeWidth = 1f * s }
         c.drawLine(r.left, r.top + head, r.right, r.top + head, edge)

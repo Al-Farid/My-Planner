@@ -67,6 +67,33 @@
             android:layout_height="wrap_content"
             android:text="Show my calendars in the planner" />
 
+        <TextView
+            android:id="@+id/calTranspLbl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Calendar widget transparency" />
+
+        <SeekBar
+            android:id="@+id/calTransp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100" />
+
+        <TextView
+            android:id="@+id/boardTranspLbl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Weekly plan widget transparency" />
+
+        <SeekBar
+            android:id="@+id/boardTransp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:max="100" />
+
         <Button
             android:id="@+id/style"
             android:layout_width="match_parent"

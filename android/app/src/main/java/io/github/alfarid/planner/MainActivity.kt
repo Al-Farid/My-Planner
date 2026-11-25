@@ -11,6 +11,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.TextView
 
 /** Setup screen: connect the widget to your planner and keep it live. */
@@ -50,7 +51,26 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.open).setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Config.PLANNER_URL)))
         }
+        slider(R.id.calTransp, R.id.calTranspLbl, "calTransp", 30, "Calendar widget transparency") { CalendarWidget.refreshAll(this) }
+        slider(R.id.boardTransp, R.id.boardTranspLbl, "boardTransp", 0, "Weekly plan widget transparency") { PlannerWidget.refreshAll(this) }
         handleLink(intent)
+    }
+
+    /** A 0–100 % transparency slider that redraws its widget when you let go. */
+    private fun slider(id: Int, labelId: Int, key: String, def: Int, label: String, redraw: () -> Unit) {
+        val bar = findViewById<SeekBar>(id)
+        val lbl = findViewById<TextView>(labelId)
+        val p = Config.prefs(this)
+        bar.progress = p.getInt(key, def)
+        lbl.text = "$label: ${bar.progress}%"
+        bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, v: Int, fromUser: Boolean) { lbl.text = "$label: $v%" }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {
+                p.edit().putInt(key, sb.progress).apply()
+                redraw()
+            }
+        })
     }
 
     override fun onNewIntent(intent: Intent) {

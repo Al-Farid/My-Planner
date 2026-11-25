@@ -63,7 +63,8 @@ class PlannerWidget : AppWidgetProvider() {
             val prefs = Config.prefs(ctx)
             val bmp = BoardRenderer.render(ctx,
                 PlanData.load(ctx), LocalDate.now(),
-                (wDp * scale).toInt(), (hDp * scale).toInt(), prefs.getString("feed", null) != null
+                (wDp * scale).toInt(), (hDp * scale).toInt(), prefs.getString("feed", null) != null,
+                prefs.getInt("boardTransp", 0)
             )
             val rv = RemoteViews(ctx.packageName, R.layout.widget_board)
             rv.setImageViewBitmap(R.id.board, bmp)

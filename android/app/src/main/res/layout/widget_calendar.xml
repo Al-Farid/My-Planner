@@ -18,20 +18,19 @@
 
         <TextView
             android:id="@+id/cal_prev"
-            android:layout_width="64dp"
+            android:layout_width="56dp"
             android:layout_height="match_parent"
             android:contentDescription="Previous month" />
 
         <TextView
             android:id="@+id/cal_title"
-            android:layout_width="0dp"
+            android:layout_width="110dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
             android:contentDescription="This month" />
 
         <TextView
             android:id="@+id/cal_next"
-            android:layout_width="64dp"
+            android:layout_width="56dp"
             android:layout_height="match_parent"
             android:contentDescription="Next month" />
     </LinearLayout>
