@@ -62,6 +62,12 @@
             android:text="Allow running in background" />
 
         <Button
+            android:id="@+id/calperm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Show my calendars in the planner" />
+
+        <Button
             android:id="@+id/style"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

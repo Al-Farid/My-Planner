@@ -40,6 +40,13 @@ class MainActivity : Activity() {
             render()
         }
         findViewById<Button>(R.id.battery).setOnClickListener { askBattery() }
+        findViewById<Button>(R.id.calperm).setOnClickListener {
+            if (DeviceCalendar.granted(this)) {
+                DeviceCalendar.upload(this, force = true)
+                CalendarWidget.refreshAll(this)
+                status.text = "Sending your calendars to the planner…"
+            } else requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), 2)
+        }
         findViewById<Button>(R.id.open).setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Config.PLANNER_URL)))
         }
@@ -54,6 +61,19 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         SyncService.startIfConfigured(this)
+        DeviceCalendar.upload(this)
+        CalendarWidget.refreshAll(this)
+        render()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 2 && DeviceCalendar.granted(this)) {
+            DeviceCalendar.upload(this, force = true)
+            CalendarWidget.refreshAll(this)
+            SyncService.stop(this)
+            SyncService.startIfConfigured(this)
+        }
         render()
     }
 
@@ -122,6 +142,12 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.live).text = if (live) "Turn off live sync" else "Turn on live sync"
         findViewById<Button>(R.id.style).text =
             if (p.getString("style", "board") == "board") "Widget look: paper planner (tap for list)" else "Widget look: scrolling list (tap for paper planner)"
+        findViewById<Button>(R.id.calperm).text = when {
+            !DeviceCalendar.granted(this) -> "Show my calendars in the planner"
+            p.getString("calErr", null) != null -> "Calendars: not sent (update Firebase rules) · tap to retry"
+            p.getLong("calUp", 0L) > 0L -> "Calendars: shared with planner ✓ · tap to resend"
+            else -> "Calendars: allowed ✓ · tap to send now"
+        }
         findViewById<Button>(R.id.battery).text =
             if (unrestricted) "Background use: allowed ✓" else "Allow running in background"
         if (feed != null && code.text.isEmpty()) code.setText(feed)

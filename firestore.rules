@@ -14,5 +14,13 @@ service cloud.firestore {
                     && request.resource.data.owner == request.auth.uid;
       allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
     }
+    // Calendars sent up by the Planner Widget app. Only for an existing widget code; read by the same code.
+    match /devcal/{feedId} {
+      allow get: if feedId.size() >= 20;
+      allow write: if feedId.size() >= 20
+                   && exists(/databases/$(database)/documents/feeds/$(feedId))
+                   && request.resource.data.keys().hasOnly(["updated", "cals", "ev"])
+                   && request.resource.data.ev.size() <= 4000;
+    }
   }
 }

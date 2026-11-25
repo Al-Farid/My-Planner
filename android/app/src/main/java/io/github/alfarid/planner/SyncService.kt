@@ -8,6 +8,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.database.ContentObserver
+import android.provider.CalendarContract
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -27,6 +29,12 @@ class SyncService : Service() {
     private var listeningTo: String? = null
     private var failed = false
     private val handler = Handler(Looper.getMainLooper())
+    private val calHandler = Handler(Looper.getMainLooper())
+    private var calObserver: ContentObserver? = null
+    private val calJob = Runnable {
+        DeviceCalendar.upload(this)
+        CalendarWidget.refreshAll(this)
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -54,6 +62,7 @@ class SyncService : Service() {
             return START_NOT_STICKY
         }
         if (feed != listeningTo || failed) listen(feed)
+        watchCalendar()
         return START_STICKY
     }
 
@@ -80,9 +89,28 @@ class SyncService : Service() {
                 .putLong("syncedAt", now)
                 .apply()
             PlannerWidget.refreshAll(this)
+            CalendarWidget.refreshAll(this)
             val src = if (snap.metadata.isFromCache) "offline copy" else "live"
             show("Widget $src · updated " + SimpleDateFormat("h:mm a", Locale.US).format(Date(now)))
         }
+    }
+
+    /** When anything in the phone's calendars changes, resend them (after a short pause) and redraw. */
+    private fun watchCalendar() {
+        if (!DeviceCalendar.granted(this)) return
+        if (calObserver == null) {
+            calObserver = object : ContentObserver(calHandler) {
+                override fun onChange(selfChange: Boolean) {
+                    calHandler.removeCallbacks(calJob)
+                    calHandler.postDelayed(calJob, 10_000L)
+                }
+            }
+            try {
+                contentResolver.registerContentObserver(CalendarContract.Events.CONTENT_URI, true, calObserver!!)
+            } catch (e: Exception) { calObserver = null }
+        }
+        calHandler.removeCallbacks(calJob)
+        calHandler.postDelayed(calJob, 3_000L)
     }
 
     private fun notification(text: String): Notification {
@@ -106,6 +134,9 @@ class SyncService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        calHandler.removeCallbacksAndMessages(null)
+        calObserver?.let { try { contentResolver.unregisterContentObserver(it) } catch (e: Exception) { } }
+        calObserver = null
         reg?.remove()
         reg = null
         super.onDestroy()

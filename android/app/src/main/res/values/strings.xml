@@ -3,4 +3,6 @@
     <string name="app_name">Planner Widget</string>
     <string name="widget_name">Weekly plan</string>
     <string name="widget_desc">Your week from My Planner, updated live</string>
+    <string name="cal_widget_name">Calendar</string>
+    <string name="cal_widget_desc">Your calendars, planner tasks and deadlines by month</string>
 </resources>

@@ -161,8 +161,10 @@ function compactPlan(d, uid) {
     sections,
     tasks: tasks.map((t) => ({
       x: String(t.text || ""), s: sections.indexOf(t.section), d: !!t.done, p: !!t.priority,
-      l: Array.isArray(t.slots) ? t.slots.filter((x) => typeof x === "string") : []
+      l: Array.isArray(t.slots) ? t.slots.filter((x) => typeof x === "string") : [],
+      u: typeof t.due === "string" ? t.due : ""
     })),
+    secDue: d.secDue && typeof d.secDue === "object" && !Array.isArray(d.secDue) ? d.secDue : {},
     notes: d.notes && typeof d.notes === "object" && !Array.isArray(d.notes) ? d.notes : {},
     blocks: d.blocks && typeof d.blocks === "object" && !Array.isArray(d.blocks) ? d.blocks : {},
     habits: habitFeed(d)
@@ -207,6 +209,11 @@ async function setupWidgetFeed(uid) {
     lastPlan = s.data();
     publishFeed();
   });
+  // Calendars sent up by the Planner Widget app on the phone/tablet (read-only here).
+  onSnapshot(doc(fs, "devcal/" + code), (s) => {
+    window.__plannerCal = s.exists() ? s.data() : null;
+    window.dispatchEvent(new Event("planner-calendar"));
+  }, () => { /* rules not updated yet: calendar tab shows planner items only */ });
   return code;
 }
 

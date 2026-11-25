@@ -15,7 +15,8 @@ data class Task(
     val section: Int,
     val done: Boolean,
     val priority: Boolean,
-    val slots: List<String>
+    val slots: List<String>,
+    val due: String = ""
 )
 
 data class Habit(val name: String, val days: Set<String>, val from: String = "2026-11-23")
@@ -26,7 +27,8 @@ data class Plan(
     val notes: Map<String, String>,
     val updated: Long,
     val labels: Map<String, String> = emptyMap(),
-    val habits: List<Habit> = emptyList()
+    val habits: List<Habit> = emptyList(),
+    val secDue: Map<String, String> = emptyMap()
 )
 
 /** A line in the widget list. */
@@ -68,7 +70,8 @@ object PlanData {
                     section = t.optInt("s", 0),
                     done = t.optBoolean("d", false),
                     priority = t.optBoolean("p", false),
-                    slots = (0 until (l?.length() ?: 0)).map { l!!.optString(it) }
+                    slots = (0 until (l?.length() ?: 0)).map { l!!.optString(it) },
+                    due = t.optString("u", "")
                 )
             }
             val n = o.optJSONObject("notes")
@@ -83,7 +86,10 @@ object PlanData {
                 val dd = h.optJSONArray("d")
                 Habit(h.optString("n"), (0 until (dd?.length() ?: 0)).map { dd!!.optString(it) }.toSet(), h.optString("f", "2026-11-23"))
             }
-            Plan(sections, tasks, notes, o.optLong("updated", 0L), labels, habits)
+            val sd = o.optJSONObject("secDue")
+            val secDue = mutableMapOf<String, String>()
+            sd?.keys()?.forEach { k -> secDue[k] = sd.optString(k) }
+            Plan(sections, tasks, notes, o.optLong("updated", 0L), labels, habits, secDue)
         } catch (e: Exception) {
             null
         }

@@ -165,6 +165,35 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .it:hover { background: var(--surface2); }
 .it.prio { background: var(--prio); }
 .habbox .list { padding-bottom: 6px; }
+.calwrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .calwrap { grid-template-columns: minmax(0, 1fr); } }
+.calgrid { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); min-width: 0; }
+.cal-h { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--weekend); border-bottom: 1px solid var(--line); }
+.cal-h span { text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 0; }
+.cal-b { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-c { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 0; text-align: left; font: inherit; color: var(--ink); background: var(--surface); border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 4px 6px; cursor: pointer; overflow: hidden; }
+.cal-c:nth-child(7n) { border-right: 0; }
+.cal-c:hover { background: var(--surface2); }
+.cal-c.out { opacity: .45; }
+.cal-c.td .cal-n { background: var(--ink); color: var(--surface); border-radius: 6px; padding: 0 5px; }
+.cal-c.sel { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-n { align-self: center; font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.cch { display: block; font-size: 11px; line-height: 1.35; padding: 1px 4px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: color-mix(in srgb, var(--cc, #8a93a8) 22%, var(--surface)); border-left: 3px solid var(--cc, #8a93a8); }
+.cch.k-due, .cch.k-secdue { --cc: #c0392b; background: #fbe3e0; color: #8e1f14; font-weight: 600; }
+.cch.done { text-decoration: line-through; opacity: .6; }
+.cch.more { background: none; border: 0; color: var(--muted); }
+.calday { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.calday h3 { margin: 0; font-family: var(--font-serif); font-size: 20px; }
+.cal-list { display: flex; flex-direction: column; gap: 6px; }
+.cal-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cal-row .cch { flex: 1; min-width: 0; white-space: normal; font-size: 13px; padding: 4px 8px; }
+.cal-row .cch small { color: var(--muted); font-weight: 400; }
+.caladd { display: flex; flex-wrap: wrap; gap: 6px; }
+.caladd input, .caladd select { flex: 1 1 120px; min-width: 0; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: var(--surface); color: var(--ink); }
+.calfilt { margin-top: 10px; }
+.calfilt summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.calfilt #calFilters { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 8px 2px; }
+.cdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
 .hweek { display: inline-flex; gap: 3px; margin-left: auto; flex: none; }
 .hweek i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: block; }
 .hweek i.on { background: var(--c2); }
@@ -274,6 +303,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
         <button class="tab" role="tab" data-act="view" data-view="week" id="tabWeek">Weekly plan</button>
         <button class="tab" role="tab" data-act="view" data-view="schedule" id="tabSched">Schedule</button>
         <button class="tab" role="tab" data-act="view" data-view="habits" id="tabHab">Habits</button>
+        <button class="tab" role="tab" data-act="view" data-view="calendar" id="tabCal">Calendar</button>
       </div>
       <div class="status" id="status" role="status">Loading…</div>
     </div>
@@ -300,6 +330,22 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
       </div>
       <div class="wk-col" id="wkDays"></div>
     </div>
+  </section>
+
+  <section class="panel calp" id="calPanel" aria-label="Calendar" hidden>
+    <div class="wk-head">
+      <div><h2 id="calMonthLbl">Calendar</h2><div class="rng" id="calSrc"></div></div>
+      <div class="ctrls">
+        <button class="btn icon" data-act="calprev" aria-label="Previous month">&#8249;</button>
+        <button class="btn" data-act="calnow">Today</button>
+        <button class="btn icon" data-act="calnext" aria-label="Next month">&#8250;</button>
+      </div>
+    </div>
+    <div class="calwrap">
+      <div class="calgrid" id="calGrid"></div>
+      <aside class="calday" id="calDay"></aside>
+    </div>
+    <details class="calfilt"><summary>Show calendars</summary><div id="calFilters"></div></details>
   </section>
 
   <section class="panel habits" id="habitPanel" aria-label="Habit tracker" hidden>
@@ -381,6 +427,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     <div class="fld" id="fBlkWrap" hidden><span id="fBlkLabel">Study blocks</span><span class="blks" id="fBlocks" role="group" aria-label="Study blocks"></span>
       <span style="margin-top:6px">Day (change it to move the task)</span><input type="date" id="fDate"></div>
     <label class="fld"><span id="fSecLabel">Section</span><input type="text" id="fSec" list="secList"></label>
+    <label class="fld"><span id="fDueLabel">Deadline (shows on the calendar)</span><input type="date" id="fDue"></label>
     <div class="row-btns">
       <button type="button" class="btn" id="fTop" data-act="sectop" hidden>Move section to top</button>
       <button type="button" class="btn" data-act="edit-cancel">Cancel</button>
@@ -478,6 +525,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     if (!st.blocks || typeof st.blocks !== "object" || Array.isArray(st.blocks)) st.blocks = {};
     if (!Array.isArray(st.habits)) st.habits = [];
     if (!st.habitLog || typeof st.habitLog !== "object" || Array.isArray(st.habitLog)) st.habitLog = {};
+    if (!st.secDue || typeof st.secDue !== "object" || Array.isArray(st.secDue)) st.secDue = {};
     return st;
   }
 
@@ -504,10 +552,10 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
   try { var rb = localStorage.getItem(LSB); if (rb) base = JSON.parse(rb); } catch (e) {}
   function setBase(d) { base = JSON.parse(JSON.stringify(d)); try { localStorage.setItem(LSB, JSON.stringify(base)); } catch (e) {} }
   function payload() {
-    return JSON.parse(JSON.stringify({ tasks: S.tasks, notes: S.notes || {}, blocks: S.blocks || {}, habits: S.habits || [], habitLog: S.habitLog || {}, updated: S.updated || 0 }));
+    return JSON.parse(JSON.stringify({ tasks: S.tasks, notes: S.notes || {}, blocks: S.blocks || {}, habits: S.habits || [], habitLog: S.habitLog || {}, secDue: S.secDue || {}, updated: S.updated || 0 }));
   }
   function same(x, y) { return JSON.stringify(x === undefined ? null : x) === JSON.stringify(y === undefined ? null : y); }
-  function content(d) { return d ? { tasks: d.tasks || [], notes: d.notes || {}, blocks: d.blocks || {}, habits: d.habits || [], habitLog: d.habitLog || {} } : null; }
+  function content(d) { return d ? { tasks: d.tasks || [], notes: d.notes || {}, blocks: d.blocks || {}, habits: d.habits || [], habitLog: d.habitLog || {}, secDue: d.secDue || {} } : null; }
   function mergeList(b, l, r) {
     b = b || []; l = l || []; r = r || [];
     var bm = {}, lm = {}, rm = {};
@@ -551,14 +599,15 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
   function merge3(b, l, r) {
     if (!r) return l;
     if (b && same(content(b), content(r))) return l;           // nobody else changed anything
-    var bb = b || { tasks: [], notes: {}, blocks: {}, habits: [], habitLog: {} };
+    var bb = b || { tasks: [], notes: {}, blocks: {}, habits: [], habitLog: {}, secDue: {} };
     if (!b) { bb = JSON.parse(JSON.stringify(r)); }            // no history: keep both sides, nothing is deleted
     var m = {
       tasks: mergeList(b ? bb.tasks : [], l.tasks, r.tasks),
       notes: mergeMap(bb.notes, l.notes, r.notes),
       blocks: mergeMap(bb.blocks, l.blocks, r.blocks),
       habits: mergeList(b ? bb.habits : [], l.habits, r.habits),
-      habitLog: mergeLog(b ? bb.habitLog : {}, l.habitLog, r.habitLog)
+      habitLog: mergeLog(b ? bb.habitLog : {}, l.habitLog, r.habitLog),
+      secDue: mergeMap(b ? bb.secDue : {}, l.secDue, r.secDue)
     };
     if (!b) { m.notes = mergeMap({}, l.notes, r.notes); m.blocks = mergeMap({}, l.blocks, r.blocks); }
     m.updated = Math.max(l.updated || 0, r.updated || 0) + 1;
@@ -601,7 +650,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     if (base && !same(content(local), content(base))) { dirty = true; flush(); return; }   // unsynced edits here: merge
     if (!base && !same(content(local), content(d))) { dirty = true; flush(); return; }     // first sync on this device: keep both
     if (!same(content(local), content(d))) {
-      S = migrate(JSON.parse(JSON.stringify({ tasks: d.tasks, notes: d.notes, blocks: d.blocks, habits: d.habits, habitLog: d.habitLog, updated: d.updated })));
+      S = migrate(JSON.parse(JSON.stringify({ tasks: d.tasks, notes: d.notes, blocks: d.blocks, habits: d.habits, habitLog: d.habitLog, secDue: d.secDue, updated: d.updated })));
       persistLocal(); render();
     }
     setBase(d);
@@ -696,6 +745,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     $("secList").innerHTML = sections().map(function (s) { return '<option value="' + esc(s) + '">'; }).join("");
     renderWeek();
     renderHabits();
+    renderCal();
     $("status").textContent = statusMsg;
   }
 
@@ -882,24 +932,118 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     notesT = setTimeout(function () { if (v.trim()) S.notes[wk] = v; else delete S.notes[wk]; queueSave(); }, 500);
   });
   function applyView() {
-    var w = viewMode === "week", sc = viewMode === "schedule", hb = viewMode === "habits";
-    $("weekView").hidden = !w; $("schedPanel").hidden = !sc; $("savesPanel").hidden = !sc; $("habitPanel").hidden = !hb;
-    [["tabWeek", w], ["tabSched", sc], ["tabHab", hb]].forEach(function (x) { $(x[0]).classList.toggle("on", x[1]); $(x[0]).setAttribute("aria-selected", x[1] ? "true" : "false"); });
+    var w = viewMode === "week", sc = viewMode === "schedule", hb = viewMode === "habits", cl = viewMode === "calendar";
+    $("weekView").hidden = !w; $("schedPanel").hidden = !sc; $("savesPanel").hidden = !sc; $("habitPanel").hidden = !hb; $("calPanel").hidden = !cl;
+    [["tabWeek", w], ["tabSched", sc], ["tabHab", hb], ["tabCal", cl]].forEach(function (x) { $(x[0]).classList.toggle("on", x[1]); $(x[0]).setAttribute("aria-selected", x[1] ? "true" : "false"); });
     $("sub").textContent = w ? "Your week at a glance. Tick tasks off, star top priorities, and add tasks to any day."
       : hb ? "Track daily habits. Tap a box to mark a day done."
+      : cl ? "Your calendars, scheduled tasks and deadlines. Tap a day to see everything on it."
       : "Click a block on the sheet to schedule that task. Drag across blocks to fill a stretch.";
     if (w) growNotes();
   }
   function setViewMode(m) {
-    viewMode = m === "schedule" || m === "habits" ? m : "week";
+    viewMode = m === "schedule" || m === "habits" || m === "calendar" ? m : "week";
     try { localStorage.setItem("proposal-tracker-mode", viewMode); } catch (e) {}
     if (location.hash !== "#" + viewMode) location.hash = viewMode;
     applyView();
   }
   try { var vm = localStorage.getItem("proposal-tracker-mode"); if (vm) viewMode = vm; } catch (e) {}
-  if (/^#(schedule|week|habits)$/.test(location.hash)) viewMode = location.hash.slice(1);
-  window.addEventListener("hashchange", function () { if (/^#(schedule|week|habits)$/.test(location.hash)) { viewMode = location.hash.slice(1); applyView(); } });
+  if (/^#(schedule|week|habits|calendar)$/.test(location.hash)) viewMode = location.hash.slice(1);
+  window.addEventListener("hashchange", function () { if (/^#(schedule|week|habits|calendar)$/.test(location.hash)) { viewMode = location.hash.slice(1); applyView(); } });
   applyView();
+
+  /* ---------- calendar: phone/tablet calendars + scheduled tasks + deadlines ---------- */
+  var calMonth = todayStr().slice(0, 7), calSel = todayStr(), CAL = window.__plannerCal || null, calHide = {};
+  try { calHide = JSON.parse(localStorage.getItem("planner-cal-hide") || "{}") || {}; } catch (e) {}
+  window.addEventListener("planner-calendar", function () { CAL = window.__plannerCal || null; renderCal(); });
+  function calKey(c) { return "c:" + (c.n || "") + "|" + (c.a || ""); }
+  function calItems(d) {
+    var out = [];
+    if (CAL && Array.isArray(CAL.ev)) CAL.ev.forEach(function (e) {
+      var c = (CAL.cals || [])[e.k] || {};
+      if (calHide[calKey(c)]) return;
+      if (d < e.d || d > (e.e || e.d)) return;
+      out.push({ kind: "ev", t: e.t || "(no title)", tm: e.tm || "", color: c.c || "#8a93a8", cal: c.n || "", order: e.tm ? 3 : 0 });
+    });
+    if (!calHide["planner:due"]) {
+      S.tasks.forEach(function (t) { if (t.due === d) out.push({ kind: "due", t: t.text, id: t.id, done: t.done, sec: t.section, order: 1 }); });
+      Object.keys(S.secDue || {}).forEach(function (sec) { if (S.secDue[sec] === d && sections().indexOf(sec) >= 0) out.push({ kind: "secdue", t: sec, sec: sec, order: 1 }); });
+    }
+    if (!calHide["planner:tasks"]) dayItems(d).forEach(function (x) {
+      out.push({ kind: "task", t: x.t.text, id: x.t.id, done: x.t.done, sec: x.t.section, blocks: x.blocks, order: 2 });
+    });
+    out.sort(function (a, b) { return a.order - b.order || (a.tm || "").localeCompare(b.tm || ""); });
+    return out;
+  }
+  function chip(it, full) {
+    var cls = "cch k-" + it.kind + (it.done ? " done" : ""), st = "";
+    if (it.kind === "ev") st = ' style="--cc:' + esc(it.color) + '"';
+    else if (it.kind === "task") st = ' style="--cc:var(--' + secColor(it.sec) + ')"';
+    var lab = it.kind === "due" ? "&#9873; " + esc(it.t) : it.kind === "secdue" ? "&#9873; " + esc(it.t) + " (section)" : esc(it.t);
+    if (full && it.tm) lab = '<b>' + esc(it.tm) + '</b> ' + lab;
+    else if (!full && it.tm) lab = esc(it.tm) + " " + lab;
+    if (full && it.kind === "task") lab += ' <small>' + it.blocks.map(function (b) { return esc(b.label); }).join(" &middot; ") + '</small>';
+    if (full && it.kind === "ev" && it.cal) lab += ' <small>' + esc(it.cal) + '</small>';
+    return '<span class="' + cls + '"' + st + '>' + lab + '</span>';
+  }
+  function renderCal() {
+    if (!$("calGrid")) return;
+    var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7), today = todayStr();
+    $("calMonthLbl").textContent = new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    $("calSrc").textContent = CAL && CAL.updated
+      ? "Phone/tablet calendars synced " + new Date(CAL.updated).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : "Showing planner tasks and deadlines. Open the Planner Widget app and allow calendar access to add your phone's calendars.";
+    var first = y + "-" + ("0" + m).slice(-2) + "-01", start = addDays(first, -parse(first).getDay());
+    var days = new Date(y, m, 0).getDate(), rows = Math.ceil((parse(first).getDay() + days) / 7);
+    var h = '<div class="cal-h">' + ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(function (x) { return "<span>" + x + "</span>"; }).join("") + '</div><div class="cal-b" style="grid-template-rows:repeat(' + rows + ',minmax(92px,1fr))">';
+    for (var i = 0; i < rows * 7; i++) {
+      var d = addDays(start, i), its = calItems(d), out = d.slice(0, 7) !== calMonth, cap = 4;
+      h += '<button type="button" class="cal-c' + (out ? " out" : "") + (d === today ? " td" : "") + (d === calSel ? " sel" : "") + '" data-act="calday" data-date="' + d + '">' +
+        '<span class="cal-n">' + parse(d).getDate() + '</span>' +
+        its.slice(0, its.length > cap ? cap - 1 : cap).map(function (it) { return chip(it, false); }).join("") +
+        (its.length > cap ? '<span class="cch more">+' + (its.length - cap + 1) + ' more</span>' : "") + '</button>';
+    }
+    $("calGrid").innerHTML = h + '</div>';
+    /* the selected day */
+    var sel = calItems(calSel);
+    $("calDay").innerHTML = '<h3>' + parse(calSel).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) + '</h3>' +
+      (sel.length ? '<div class="cal-list">' + sel.map(function (it) {
+        var tick = it.kind === "task" || it.kind === "due"
+          ? '<input type="checkbox" data-act="toggle" data-id="' + it.id + '"' + (it.done ? " checked" : "") + ' aria-label="Mark ' + esc(it.t) + ' done">' : "";
+        var ed = it.id ? ' <button type="button" class="linkbtn" data-act="edit" data-id="' + it.id + '">Edit</button>' : "";
+        return '<div class="cal-row">' + tick + chip(it, true) + ed + '</div>';
+      }).join("") + '</div>' : '<p class="empty2">Nothing on this day.</p>') +
+      '<form id="calAdd" class="caladd" autocomplete="off"><input type="text" id="calAddText" placeholder="Add a task or deadline on this day" aria-label="Task">' +
+      '<input type="text" id="calAddSec" list="secList" placeholder="Section" aria-label="Section">' +
+      '<select id="calAddKind" aria-label="Add as"><option value="due">Deadline</option><option value="task">Scheduled task</option></select>' +
+      '<button class="btn primary" type="submit">Add</button></form>';
+    /* filters */
+    var f = '<label class="chk"><input type="checkbox" data-act="calfilt" data-key="planner:tasks"' + (calHide["planner:tasks"] ? "" : " checked") + '> Planner: scheduled tasks</label>' +
+      '<label class="chk"><input type="checkbox" data-act="calfilt" data-key="planner:due"' + (calHide["planner:due"] ? "" : " checked") + '> Planner: deadlines</label>';
+    if (CAL && Array.isArray(CAL.cals)) f += CAL.cals.map(function (c) {
+      var k = calKey(c);
+      return '<label class="chk"><input type="checkbox" data-act="calfilt" data-key="' + esc(k) + '"' + (calHide[k] ? "" : " checked") + '> <i class="cdot" style="background:' + esc(c.c || "#8a93a8") + '"></i>' + esc(c.n || "Calendar") + (c.a ? ' <small>' + esc(c.a) + '</small>' : "") + '</label>';
+    }).join("");
+    $("calFilters").innerHTML = f;
+  }
+  function calShift(k) { var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7) - 1 + k, dd = new Date(y, m, 1); calMonth = dd.getFullYear() + "-" + ("0" + (dd.getMonth() + 1)).slice(-2); renderCal(); }
+  document.addEventListener("submit", function (e) {
+    if (e.target.id !== "calAdd") return;
+    e.preventDefault();
+    var text = $("calAddText").value.trim(); if (!text) { $("calAddText").focus(); return; }
+    var sec = $("calAddSec").value.trim() || "Other tasks", kind = $("calAddKind").value;
+    var nt = { id: uid(), text: text, note: "", section: sec, done: false, doneOn: null, slots: kind === "task" ? [calSel + "|" + defaultBlock(calSel)] : [], priority: false };
+    if (kind === "due") nt.due = calSel;
+    var li = -1; S.tasks.forEach(function (x, i) { if (x.section === sec) li = i; });
+    if (li >= 0) S.tasks.splice(li + 1, 0, nt); else S.tasks.push(nt);
+    touch();
+  });
+  document.addEventListener("change", function (e) {
+    var el = e.target; if (!el.dataset || el.dataset.act !== "calfilt") return;
+    if (el.checked) delete calHide[el.dataset.key]; else calHide[el.dataset.key] = 1;
+    try { localStorage.setItem("planner-cal-hide", JSON.stringify(calHide)); } catch (x) {}
+    renderCal();
+  });
 
   /* ---------- habits ---------- */
   var habMonth = todayStr().slice(0, 7), habDel = null, habDelT = null;
@@ -1049,6 +1193,8 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     $("fTop").hidden = isTask || sections().indexOf(mode.name) <= 0;
     if (isTask) { $("fText").value = t.text; $("fNote").value = t.note || ""; $("fSec").value = t.section; $("fPrio").checked = !!t.priority; }
     else $("fSec").value = mode.name;
+    $("fDueLabel").textContent = isTask ? "Deadline (shows on the calendar)" : "Section deadline (shows on the calendar)";
+    $("fDue").value = (isTask ? t.due : (S.secDue || {})[mode.name]) || "";
     var showBlk = isTask && !!mode.date;
     $("fBlkWrap").hidden = !showBlk;
     if (showBlk) {
@@ -1077,6 +1223,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
         if (last >= 0) S.tasks.splice(last + 1, 0, t); else S.tasks.push(t);
       }
       t.text = txt; t.note = $("fNote").value.trim(); t.priority = $("fPrio").checked;
+      if ($("fDue").value) t.due = $("fDue").value; else delete t.due;
       if (editing.date) {
         var od = editing.date, nd = $("fDate").value || od, picked = pickedBlocks($("fBlocks"));
         t.slots = t.slots.filter(function (x) { return x.slice(0, 10) !== od; });
@@ -1085,6 +1232,9 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     } else {
       if (!sec) { $("fSec").focus(); return; }
       var old = editing.name;
+      S.secDue = S.secDue || {};
+      var sd = $("fDue").value; delete S.secDue[old];
+      if (sd) S.secDue[sec] = sd;
       S.tasks.forEach(function (x) { if (x.section === old) x.section = sec; });
       var out = [];
       sections().forEach(function (s) { S.tasks.forEach(function (x) { if (x.section === s) out.push(x); }); });
@@ -1268,6 +1418,10 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     }
     if (a === "view") { setViewMode(el.dataset.view); return; }
     if (a === "habtog") { habToggle(id, el.dataset.date); return; }
+    if (a === "calday") { calSel = el.dataset.date; renderCal(); return; }
+    if (a === "calprev") { calShift(-1); return; }
+    if (a === "calnext") { calShift(1); return; }
+    if (a === "calnow") { calMonth = todayStr().slice(0, 7); calSel = todayStr(); renderCal(); return; }
     if (a === "habprev") { monthShift(-1); return; }
     if (a === "habnext") { monthShift(1); return; }
     if (a === "habnow") { habMonth = todayStr().slice(0, 7); renderHabits(); return; }
