@@ -1457,6 +1457,19 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     else if (a === "import-go") {
       if (importBuf) { autoBackup(); loadTasks(importBuf.tasks, "Imported " + importBuf.tasks.length + " tasks"); importBuf = null; renderSaves(); }
     }
+    else if (a === "import-add") {
+      if (importBuf) {
+        var have = {}; S.tasks.forEach(function (x) { have[x.id] = 1; });
+        var add = importBuf.tasks.filter(function (x) { return !have[x.id]; }).map(function (x) {
+          var t = { id: x.id, text: x.text, note: x.note, section: x.section, done: x.done, doneOn: x.doneOn, slots: x.slots, priority: !!x.priority };
+          if (x.due) t.due = x.due;
+          return t;
+        });
+        S.tasks = S.tasks.concat(add); touch();
+        setStatus("Added " + add.length + " tasks" + (add.length < importBuf.tasks.length ? " (" + (importBuf.tasks.length - add.length) + " already there)" : ""));
+        importBuf = null; renderSaves();
+      }
+    }
     else if (a === "import-cancel") { importBuf = null; setStatus("Import cancelled"); renderSaves(); }
     else if (a === "load") setPending({ kind: "load", id: id });
     else if (a === "load-go") {
@@ -1531,7 +1544,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
     if (importBuf) {
       h += '<div class="save" style="border-color:var(--accent)"><span class="nm">' + esc(importBuf.name) + ' — ' + importBuf.tasks.length + ' tasks</span>' +
         '<span class="meta">Replaces everything on the sheet now.</span>' +
-        '<button class="sm warn" data-act="import-go">Replace</button><button class="sm" data-act="import-cancel">Cancel</button></div>';
+        '<button class="sm" data-act="import-add">Add to my tasks</button><button class="sm warn" data-act="import-go">Replace</button><button class="sm" data-act="import-cancel">Cancel</button></div>';
     }
     if (!savesCol) h += '<div class="empty">Named saves need your account. You can still export and import files.</div>';
     else if (!saves.length) h += '<div class="empty">No saves yet. Name one above to keep a copy you can come back to.</div>';
@@ -1579,7 +1592,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
             section: t.section ? String(t.section) : "Other tasks", done: !!t.done,
             doneOn: typeof t.doneOn === "string" ? t.doneOn : null,
             slots: Array.isArray(t.slots) ? t.slots.filter(function (x) { return typeof x === "string"; }) : [],
-            date: t.date, block: t.block
+            date: t.date, block: t.block, priority: !!t.priority, due: typeof t.due === "string" ? t.due : ""
           };
         });
         if (!ts.length) throw 0;
