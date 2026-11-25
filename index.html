@@ -954,7 +954,9 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
 
   /* ---------- calendar: phone/tablet calendars + scheduled tasks + deadlines ---------- */
   var calMonth = todayStr().slice(0, 7), calSel = todayStr(), CAL = window.__plannerCal || null, calHide = {};
-  try { calHide = JSON.parse(localStorage.getItem("planner-cal-hide") || "{}") || {}; } catch (e) {}
+  /* scheduled tasks are off by default: the calendar shows deadlines, not every task */
+  calHide = { "planner:tasks": 1 };
+  try { var ch = localStorage.getItem("planner-cal-hide2"); if (ch) calHide = JSON.parse(ch) || calHide; } catch (e) {}
   window.addEventListener("planner-calendar", function () { CAL = window.__plannerCal || null; renderCal(); });
   function calKey(c) { return "c:" + (c.n || "") + "|" + (c.a || ""); }
   function calItems(d) {
@@ -1018,7 +1020,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
       '<select id="calAddKind" aria-label="Add as"><option value="due">Deadline</option><option value="task">Scheduled task</option></select>' +
       '<button class="btn primary" type="submit">Add</button></form>';
     /* filters */
-    var f = '<label class="chk"><input type="checkbox" data-act="calfilt" data-key="planner:tasks"' + (calHide["planner:tasks"] ? "" : " checked") + '> Planner: scheduled tasks</label>' +
+    var f = '<label class="chk"><input type="checkbox" data-act="calfilt" data-key="planner:tasks"' + (calHide["planner:tasks"] ? "" : " checked") + '> Planner: scheduled tasks (all study blocks)</label>' +
       '<label class="chk"><input type="checkbox" data-act="calfilt" data-key="planner:due"' + (calHide["planner:due"] ? "" : " checked") + '> Planner: deadlines</label>';
     if (CAL && Array.isArray(CAL.cals)) f += CAL.cals.map(function (c) {
       var k = calKey(c);
@@ -1041,7 +1043,7 @@ button.blk:hover, button.blk:focus-visible { border-color: var(--line); backgrou
   document.addEventListener("change", function (e) {
     var el = e.target; if (!el.dataset || el.dataset.act !== "calfilt") return;
     if (el.checked) delete calHide[el.dataset.key]; else calHide[el.dataset.key] = 1;
-    try { localStorage.setItem("planner-cal-hide", JSON.stringify(calHide)); } catch (x) {}
+    try { localStorage.setItem("planner-cal-hide2", JSON.stringify(calHide)); } catch (x) {}
     renderCal();
   });
 

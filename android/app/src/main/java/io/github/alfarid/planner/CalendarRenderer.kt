@@ -116,7 +116,6 @@ object CalendarRenderer {
         if (plan != null) {
             plan.tasks.forEach { t ->
                 if (t.due.isNotEmpty()) add(t.due, Chip("⚑ " + t.text, DUE, 1, t.done))
-                t.slots.map { it.substringBefore("|") }.distinct().forEach { d -> add(d, Chip(t.text, PlanData.secColor(t.section), 2, t.done)) }
             }
             plan.secDue.forEach { (sec, d) -> if (plan.sections.contains(sec)) add(d, Chip("⚑ $sec", DUE, 1, false)) }
         }
